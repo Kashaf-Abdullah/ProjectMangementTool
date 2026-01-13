@@ -1,0 +1,36 @@
+auth.js:        [public]
+users.js:       protect → tenant → checkUserLimit → authorize('admin')
+projects.js:    protect → tenant → authorize('admin', 'project_manager')
+tasks.js:       protect → tenant → [role-specific]
+billing.js:     protect → tenant
+org.js:         protect → [super_admin bypass] / tenant
+
+
+
+
+\
+POST /api/auth/register-super-admin    # Super admin setup (once)
+POST /api/auth/login                   # All users login
+
+POST /api/organizations                # Super admin: create org
+GET  /api/organizations                # Super admin: list all orgs
+GET  /api/organizations/stats          # Org admin: view own org stats
+
+POST /api/users/invite                 # Org admin: invite users (limit check)
+GET  /api/users/activate/:token        # User: activate via invite link
+GET  /api/users                        # Org admin: list org users
+
+POST /api/projects                     # PM/Admin: create project
+GET  /api/projects                     # All: list org projects
+PUT  /api/projects/:id                 # PM/Admin: update
+DELETE /api/projects/:id              # PM/Admin: delete
+
+POST /api/tasks                        # PM/Admin: create task
+GET  /api/tasks/project/:projectId     # All: get project tasks
+PUT  /api/tasks/:id                    # Users: update own tasks
+DELETE /api/tasks/:id                 # PM/Admin: delete
+
+POST /api/billing/create-checkout-session  # Buy user pack ($5)
+GET  /api/billing/status               # Check billing/limits
+
+POST /api/webhook/stripe               # Stripe webhook (server-to-server)

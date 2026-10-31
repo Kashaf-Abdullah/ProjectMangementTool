@@ -1,58 +1,74 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { 
-  FiArrowLeft, 
-  FiEdit, 
-  FiTrash2, 
-  FiUsers, 
-  FiCalendar,
+import {
+  FiArrowLeft,
+  FiEdit,
+  FiTrash2,
+  FiUsers,
   FiCheckCircle,
   FiClock,
   FiActivity,
   FiBarChart2,
   FiMessageSquare,
-  FiFileText
+  FiFileText,
+  FiPlus
 } from 'react-icons/fi';
 import Modal from '../common/Modal';
 import ProjectForm from './ProjectForm';
+import TaskForm from '../tasks/TaskForm';
+import TaskCard from '../tasks/TaskCard';
+import '../../styles/pages/projects.css';
 
 const ProjectDetails = () => {
   const { projectId } = useParams();
   const { user } = useAuth();
+  const { refreshNotifications } = useNotifications();
   const navigate = useNavigate();
-  
+
+  const currentUserId = user?._id || user?.id;
+  const canManage = ['admin', 'project_manager', 'super_admin'].includes(user?.role);
+
   const [project, setProject] = useState(null);
+  const [allProjects, setAllProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState('tasks');
 
   useEffect(() => {
     fetchProjectDetails();
   }, [projectId]);
 
   const fetchProjectDetails = async () => {
+    setLoading(true);
     try {
-      const [projectRes, tasksRes] = await Promise.all([
-        api.get(`/projects`).then(res => 
-          res.data.find(p => p._id === projectId)
-        ),
-        api.get('/tasks').then(res =>
-          res.data.filter(t => t.projectId?._id === projectId)
-        )
+      const [projectsRes, projectTasksRes, usersRes] = await Promise.all([
+        api.get('/projects'),
+        api.get(`/tasks/project/${projectId}`),
+        api.get('/users?activeOnly=true')
       ]);
 
-      if (!projectRes) {
+      const projectList = Array.isArray(projectsRes.data) ? projectsRes.data : [];
+      const foundProject = projectList.find(p => p._id === projectId);
+
+      if (!foundProject) {
         toast.error('Project not found');
         navigate('/projects');
         return;
       }
 
-      setProject(projectRes);
-      setTasks(tasksRes);
+      setAllProjects(projectList);
+      setProject(foundProject);
+      setTasks(Array.isArray(projectTasksRes.data) ? projectTasksRes.data : []);
+      setMembers(Array.isArray(usersRes.data) ? usersRes.data : []);
     } catch (error) {
       toast.error('Failed to load project details');
       navigate('/projects');
@@ -67,16 +83,13 @@ const ProjectDetails = () => {
       setProject(response.data);
       setShowEditModal(false);
       toast.success('Project updated successfully!');
+      refreshNotifications();
     } catch (error) {
       toast.error('Failed to update project');
     }
   };
 
   const handleDeleteProject = async () => {
-    if (!window.confirm('Are you sure you want to delete this project?')) {
-      return;
-    }
-
     try {
       await api.delete(`/projects/${projectId}`);
       toast.success('Project deleted successfully!');
@@ -86,21 +99,46 @@ const ProjectDetails = () => {
     }
   };
 
-  const getTaskStats = () => {
-    const total = tasks.length;
-    const completed = tasks.filter(t => t.status === 'done').length;
-    const inProgress = tasks.filter(t => t.status === 'in_progress').length;
-    const todo = tasks.filter(t => t.status === 'todo').length;
-    const inReview = tasks.filter(t => t.status === 'review').length;
+  const handleCreateTask = async (taskData) => {
+    try {
+      const response = await api.post('/tasks', taskData);
+      if ((response.data.projectId?._id || response.data.projectId) === projectId) {
+        setTasks(prev => [response.data, ...prev]);
+      }
+      setShowCreateTaskModal(false);
+      toast.success('Task created & assigned! Notification sent.');
+      fetchProjectDetails();
+      refreshNotifications();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to create task');
+      throw error;
+    }
+  };
 
-    return {
-      total,
-      completed,
-      inProgress,
-      todo,
-      inReview,
-      progress: total > 0 ? Math.round((completed / total) * 100) : 0
-    };
+  const handleUpdateTask = async (taskId, updates) => {
+    try {
+      const response = await api.put(`/tasks/${taskId}`, updates);
+      const updatedPid = response.data.projectId?._id || response.data.projectId;
+      if (updatedPid !== projectId) {
+        setTasks(prev => prev.filter(t => t._id !== taskId));
+      } else {
+        setTasks(prev => prev.map(t => (t._id === taskId ? response.data : t)));
+      }
+      toast.success(updates.assigneeId ? 'Task reassigned & notified!' : 'Task updated!');
+      refreshNotifications();
+    } catch (error) {
+      toast.error('Failed to update task');
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await api.delete(`/tasks/${taskId}`);
+      setTasks(prev => prev.filter(t => t._id !== taskId));
+      toast.success('Task deleted');
+    } catch (error) {
+      toast.error('Failed to delete task');
+    }
   };
 
   if (loading) {
@@ -111,58 +149,60 @@ const ProjectDetails = () => {
     );
   }
 
-  if (!project) {
-    return (
-      <div className="not-found">
-        <h2>Project not found</h2>
-        <Link to="/projects" className="btn primary-btn">
-          <FiArrowLeft />
-          Back to Projects
-        </Link>
-      </div>
-    );
-  }
+  if (!project) return null;
 
-  const taskStats = getTaskStats();
-  const canEdit = ['admin', 'project_manager'].includes(user?.role);
+  const total = tasks.length;
+  const completed = tasks.filter(t => t.status === 'done').length;
+  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+  const todo = tasks.filter(t => t.status === 'todo').length;
+  const inReview = tasks.filter(t => t.status === 'review').length;
+  const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (
-    <div className="project-details">
-      {/* Header */}
-      <div className="project-header">
+    <div className="project-details-page">
+      <div className="project-detail-header">
         <div className="header-left">
           <Link to="/projects" className="back-link">
             <FiArrowLeft />
             Back to Projects
           </Link>
           <div className="project-title-section">
-            <div 
-              className="project-color" 
-              style={{ backgroundColor: project.color }}
+            <span
+              className="project-color-swatch"
+              style={{ backgroundColor: project.color || '#2563eb' }}
             />
             <h1>{project.name}</h1>
             <span className={`project-status ${project.isActive ? 'active' : 'archived'}`}>
               {project.isActive ? 'Active' : 'Archived'}
             </span>
           </div>
-          <p className="project-description">{project.description}</p>
+          {project.description && (
+            <p className="project-description-lead">{project.description}</p>
+          )}
         </div>
 
         <div className="header-actions">
-          {canEdit && (
+          {canManage && (
             <>
-              <button 
+              <button
+                className="btn primary-btn"
+                onClick={() => setShowCreateTaskModal(true)}
+              >
+                <FiPlus size={16} />
+                New Task in Project
+              </button>
+              <button
                 className="btn secondary-btn"
                 onClick={() => setShowEditModal(true)}
               >
-                <FiEdit />
+                <FiEdit size={15} />
                 Edit
               </button>
-              <button 
+              <button
                 className="btn danger-btn"
-                onClick={handleDeleteProject}
+                onClick={() => setShowDeleteConfirm(true)}
               >
-                <FiTrash2 />
+                <FiTrash2 size={15} />
                 Delete
               </button>
             </>
@@ -170,59 +210,69 @@ const ProjectDetails = () => {
         </div>
       </div>
 
-      {/* Stats Bar */}
-      <div className="stats-bar">
-        <div className="stat-card">
-          <FiCheckCircle className="stat-icon" style={{ color: 'var(--success-color)' }} />
-          <div className="stat-value">{taskStats.completed}</div>
-          <div className="stat-label">Completed</div>
+      {/* KPI Strip */}
+      <div className="project-kpi-grid">
+        <div className="project-kpi-card">
+          <FiCheckCircle style={{ color: '#10b981' }} size={20} />
+          <div>
+            <div className="kpi-num">{completed}</div>
+            <div className="kpi-lbl">Completed</div>
+          </div>
         </div>
-        <div className="stat-card">
-          <FiActivity className="stat-icon" style={{ color: 'var(--info-color)' }} />
-          <div className="stat-value">{taskStats.inProgress}</div>
-          <div className="stat-label">In Progress</div>
+        <div className="project-kpi-card">
+          <FiActivity style={{ color: '#3b82f6' }} size={20} />
+          <div>
+            <div className="kpi-num">{inProgress}</div>
+            <div className="kpi-lbl">In Progress</div>
+          </div>
         </div>
-        <div className="stat-card">
-          <FiClock className="stat-icon" style={{ color: 'var(--warning-color)' }} />
-          <div className="stat-value">{taskStats.todo}</div>
-          <div className="stat-label">To Do</div>
+        <div className="project-kpi-card">
+          <FiClock style={{ color: '#64748b' }} size={20} />
+          <div>
+            <div className="kpi-num">{todo}</div>
+            <div className="kpi-lbl">To Do</div>
+          </div>
         </div>
-        <div className="stat-card">
-          <FiUsers className="stat-icon" style={{ color: 'var(--secondary-color)' }} />
-          <div className="stat-value">{project.members?.length || 0}</div>
-          <div className="stat-label">Members</div>
+        <div className="project-kpi-card">
+          <FiUsers style={{ color: '#7c3aed' }} size={20} />
+          <div>
+            <div className="kpi-num">{project.members?.length || 0}</div>
+            <div className="kpi-lbl">Team Members</div>
+          </div>
         </div>
-        <div className="stat-card">
-          <FiBarChart2 className="stat-icon" style={{ color: 'var(--primary-color)' }} />
-          <div className="stat-value">{taskStats.progress}%</div>
-          <div className="stat-label">Progress</div>
+        <div className="project-kpi-card">
+          <FiBarChart2 style={{ color: '#2563eb' }} size={20} />
+          <div>
+            <div className="kpi-num">{progress}%</div>
+            <div className="kpi-lbl">Completion</div>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="project-tabs">
-        <button 
-          className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
-        >
-          <FiActivity />
-          Overview
-        </button>
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'tasks' ? 'active' : ''}`}
           onClick={() => setActiveTab('tasks')}
         >
           <FiCheckCircle />
           Tasks ({tasks.length})
         </button>
-        <button 
+        <button
+          className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+        >
+          <FiActivity />
+          Overview
+        </button>
+        <button
           className={`tab-btn ${activeTab === 'team' ? 'active' : ''}`}
           onClick={() => setActiveTab('team')}
         >
           <FiUsers />
-          Team
+          Team ({project.members?.length || 0})
         </button>
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
           onClick={() => setActiveTab('activity')}
         >
@@ -231,44 +281,89 @@ const ProjectDetails = () => {
         </button>
       </div>
 
-      {/* Tab Content */}
       <div className="tab-content">
+        {activeTab === 'tasks' && (
+          <div className="tasks-content">
+            <div className="section-toolbar">
+              <h3>Tasks in {project.name}</h3>
+              <div className="header-actions">
+                <Link to={`/tasks?project=${project._id}`} className="btn secondary-btn btn-sm">
+                  Open in Kanban Board
+                </Link>
+                {canManage && (
+                  <button
+                    className="btn primary-btn btn-sm"
+                    onClick={() => setShowCreateTaskModal(true)}
+                  >
+                    <FiPlus size={14} />
+                    Add Task
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {tasks.length === 0 ? (
+              <div className="empty-state">
+                <FiFileText className="empty-state-icon" />
+                <h3>No tasks yet for {project.name}</h3>
+                <p>Create and assign the first task for this project.</p>
+                {canManage && (
+                  <button
+                    className="btn primary-btn mt-md"
+                    onClick={() => setShowCreateTaskModal(true)}
+                  >
+                    <FiPlus size={15} />
+                    Create First Task
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="project-tasks-grid">
+                {tasks.map(task => (
+                  <TaskCard
+                    key={task._id}
+                    task={task}
+                    projects={allProjects}
+                    members={members}
+                    onUpdate={handleUpdateTask}
+                    onDelete={handleDeleteTask}
+                    userRole={user?.role}
+                    userId={currentUserId}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'overview' && (
           <div className="overview-content">
             <div className="overview-section">
-              <h3>Progress Overview</h3>
-              <div className="progress-container">
-                <div className="progress-bar large">
-                  <div 
-                    className="progress-fill"
-                    style={{ width: `${taskStats.progress}%` }}
-                  />
-                </div>
-                <div className="progress-stats">
-                  <span>{taskStats.completed} of {taskStats.total} tasks completed</span>
-                  <span>{taskStats.progress}%</span>
-                </div>
+              <h3>Overall Completion</h3>
+              <div className="progress-bar large">
+                <div className="progress-fill" style={{ width: `${progress}%`, backgroundColor: '#2563eb' }} />
+              </div>
+              <div className="progress-stats">
+                <span>{completed} of {total} tasks completed</span>
+                <span className="tabular-nums">{progress}%</span>
               </div>
             </div>
 
             <div className="overview-section">
-              <h3>Task Status Distribution</h3>
+              <h3>Status Breakdown</h3>
               <div className="status-distribution">
                 {[
-                  { status: 'To Do', count: taskStats.todo, color: '#64748b' },
-                  { status: 'In Progress', count: taskStats.inProgress, color: '#3b82f6' },
-                  { status: 'Review', count: taskStats.inReview, color: '#f59e0b' },
-                  { status: 'Done', count: taskStats.completed, color: '#10b981' }
-                ].map((item, index) => (
-                  <div key={index} className="status-item">
-                    <div className="status-info">
-                      <div 
-                        className="status-color" 
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="status-name">{item.status}</span>
+                  { status: 'To Do', count: todo, color: '#64748b' },
+                  { status: 'In Progress', count: inProgress, color: '#3b82f6' },
+                  { status: 'In Review', count: inReview, color: '#f59e0b' },
+                  { status: 'Done', count: completed, color: '#10b981' }
+                ].map((item, idx) => (
+                  <div key={idx} className="status-dist-row">
+                    <div className="status-dist-label">
+                      <span className="status-dot" style={{ backgroundColor: item.color }} />
+                      <span>{item.status}</span>
                     </div>
-                    <span className="status-count">{item.count}</span>
+                    <span className="status-dist-count tabular-nums">{item.count}</span>
                   </div>
                 ))}
               </div>
@@ -276,38 +371,24 @@ const ProjectDetails = () => {
           </div>
         )}
 
-        {activeTab === 'tasks' && (
-          <div className="tasks-content">
-            <div className="tasks-header">
-              <h3>Project Tasks</h3>
-              <Link to="/tasks" className="btn secondary-btn">
-                View All Tasks
-              </Link>
-            </div>
-            
-            {tasks.length === 0 ? (
-              <div className="empty-tasks">
-                <FiFileText className="empty-icon" />
-                <p>No tasks yet for this project</p>
-                <Link to="/tasks" className="btn primary-btn">
-                  Create Task
-                </Link>
+        {activeTab === 'team' && (
+          <div className="team-content">
+            <h3>Assigned Project Team</h3>
+            {!project.members || project.members.length === 0 ? (
+              <div className="empty-state">
+                <FiUsers className="empty-state-icon" />
+                <p>No members assigned yet.</p>
               </div>
             ) : (
-              <div className="tasks-list">
-                {tasks.slice(0, 10).map(task => (
-                  <div key={task._id} className="task-item">
-                    <div className="task-info">
-                      <div className="task-title">{task.title}</div>
-                      <div className="task-meta">
-                        <span className={`task-status ${task.status}`}>
-                          {task.status.replace('_', ' ')}
-                        </span>
-                        <span className="task-priority">{task.priority}</span>
-                      </div>
+              <div className="team-grid">
+                {project.members.map(member => (
+                  <div key={member._id} className="team-member-card">
+                    <div className="member-avatar">
+                      {member.firstName?.charAt(0)?.toUpperCase()}
                     </div>
-                    <div className="task-assignee">
-                      {task.assigneeId?.firstName || 'Unassigned'}
+                    <div className="member-info">
+                      <div className="member-name">{member.firstName} {member.lastName}</div>
+                      <div className="member-role">{member.role?.replace('_', ' ')}</div>
                     </div>
                   </div>
                 ))}
@@ -316,26 +397,22 @@ const ProjectDetails = () => {
           </div>
         )}
 
-        {activeTab === 'team' && (
-          <div className="team-content">
-            <h3>Project Team</h3>
-            {project.members?.length === 0 ? (
-              <div className="empty-team">
-                <FiUsers className="empty-icon" />
-                <p>No team members assigned yet</p>
-              </div>
+        {activeTab === 'activity' && (
+          <div className="activity-content">
+            <h3>Recent Project Activity</h3>
+            {tasks.length === 0 ? (
+              <p className="text-muted">No task activity recorded yet for this project.</p>
             ) : (
-              <div className="team-grid">
-                {project.members?.map(member => (
-                  <div key={member._id} className="team-member">
-                    <div className="member-avatar">
-                      {member.firstName?.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="member-info">
-                      <div className="member-name">
-                        {member.firstName} {member.lastName}
+              <div className="project-activity-feed">
+                {tasks.slice(0, 10).map(t => (
+                  <div key={t._id} className="project-activity-row">
+                    <span className="status-dot" style={{ backgroundColor: t.status === 'done' ? '#10b981' : '#3b82f6' }} />
+                    <div>
+                      <strong>{t.assigneeId?.firstName || 'Unassigned'}</strong> — "{t.title}" is currently{' '}
+                      <span className="capitalize">{t.status.replace('_', ' ')}</span>
+                      <div className="text-muted">
+                        Updated {formatDistanceToNow(new Date(t.updatedAt || t.createdAt), { addSuffix: true })}
                       </div>
-                      <div className="member-role">{member.role}</div>
                     </div>
                   </div>
                 ))}
@@ -345,7 +422,7 @@ const ProjectDetails = () => {
         )}
       </div>
 
-      {/* Edit Modal */}
+      {/* Edit Project Modal */}
       <Modal
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
@@ -357,6 +434,40 @@ const ProjectDetails = () => {
           onCancel={() => setShowEditModal(false)}
           mode="edit"
         />
+      </Modal>
+
+      {/* Create Task in This Project Modal */}
+      <Modal
+        isOpen={showCreateTaskModal}
+        onClose={() => setShowCreateTaskModal(false)}
+        title={`Create Task in ${project.name}`}
+      >
+        <TaskForm
+          projects={allProjects}
+          defaultProjectId={project._id}
+          onSubmit={handleCreateTask}
+          onCancel={() => setShowCreateTaskModal(false)}
+        />
+      </Modal>
+
+      {/* Delete Project Confirmation */}
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Delete Project"
+        size="small"
+      >
+        <div className="confirm-dialog-body">
+          <p>Are you sure you want to permanently delete <strong>"{project.name}"</strong> and all its tasks?</p>
+          <div className="form-actions">
+            <button className="btn secondary-btn" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </button>
+            <button className="btn danger-btn" onClick={handleDeleteProject}>
+              Delete Project
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

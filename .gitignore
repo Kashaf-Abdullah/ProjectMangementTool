@@ -1,2 +1,8 @@
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.env
+.env.local
 /password.txt
-E:/MERN_full_project/ProjectMangementTool/pmt-frontend/node_modules
+.DS_Store

@@ -1,11 +1,10 @@
-// routes/tasks.js
 const express = require('express');
-const { 
-  createTask, 
-  getProjectTasks, 
+const {
+  createTask,
+  getProjectTasks,
   updateTask,
-  getTasks, 
-  deleteTask 
+  getTasks,
+  deleteTask
 } = require('../controllers/taskController');
 const { protect } = require('../middleware/auth');
 const tenant = require('../middleware/tenant');
@@ -16,17 +15,12 @@ const router = express.Router();
 router.use(protect);
 router.use(tenant);
 
-// router.route('/')
-//   .get(getTasks)       // ✅ FIXED
-//   .post(protect, createTask);
-
 router.route('/')
-  .get(getTasks)           // ✅ Already protected by `router.use(protect)`
-  .post(authorize('admin', 'project_manager'), createTask); // Add authorization
+  .get(getTasks)
+  .post(authorize('admin', 'project_manager', 'super_admin'), createTask);
 
-// router.post('/', authorize('admin', 'project_manager'), createTask);
 router.get('/project/:projectId', getProjectTasks);
 router.put('/:id', updateTask);
-router.delete('/:id', authorize('admin', 'project_manager'), deleteTask);
+router.delete('/:id', authorize('admin', 'project_manager', 'super_admin'), deleteTask);
 
 module.exports = router;

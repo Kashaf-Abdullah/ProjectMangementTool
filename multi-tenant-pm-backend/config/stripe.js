@@ -1,9 +1,16 @@
-// config/stripe.js
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const Stripe = require('stripe');
 const crypto = require('crypto');
 
-// Webhook signature verification
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? Stripe(process.env.STRIPE_SECRET_KEY)
+  : null;
+
+const timeDifference = (current, timestamp) => Math.abs(current - timestamp);
+
 const verifyStripeWebhook = (signature, payload, webhookSecret) => {
+  if (!webhookSecret) {
+    throw new Error('STRIPE_WEBHOOK_SECRET is not configured');
+  }
   const sig = crypto
     .createHmac('sha256', webhookSecret)
     .update(payload, 'utf8')
@@ -16,29 +23,16 @@ const verifyStripeWebhook = (signature, payload, webhookSecret) => {
       .update(timestamp + '.' + payload, 'utf8')
       .digest('hex');
 
-    if (timeDifference(Date.now() / 1000, parseInt(timestamp)) > 300) {
+    if (timeDifference(Date.now() / 1000, parseInt(timestamp, 10)) > 300) {
       throw new Error('Webhook signature verification failed. Request too old.');
     }
-
     return computed === computedSig;
   }
 
   return sig === signature;
 };
 
-// Tolerance for time differences
-const timeDifference = (current, timestamp) => {
-  return Math.abs((current - timestamp));
-};
-
 module.exports = {
   stripe,
   verifyStripeWebhook
 };
-
-
-// Mock Stripe config
-// const stripe = {};
-// const verifyStripeWebhook = () => true;
-
-// module.exports = { stripe, verifyStripeWebhook };

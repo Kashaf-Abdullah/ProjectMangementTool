@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useRealtime } from '../../context/RealtimeContext';
 import {
   FiHome,
   FiBriefcase,
   FiCheckSquare,
+  FiMessageSquare,
+  FiFolder,
+  FiActivity,
   FiBarChart2,
   FiUsers,
   FiCreditCard,
@@ -16,6 +20,7 @@ import '../../styles/components/layout.css';
 
 const Sidebar = () => {
   const { user, isSuperAdmin } = useAuth();
+  const { onlineUserIds } = useRealtime();
   const [collapsed, setCollapsed] = useState(false);
 
   const navItems = [
@@ -23,6 +28,18 @@ const Sidebar = () => {
     { path: '/projects', icon: <FiBriefcase />, label: 'Projects', roles: ['*'] },
     { path: '/tasks', icon: <FiCheckSquare />, label: 'Tasks', roles: ['*'] },
     { path: '/analytics', icon: <FiBarChart2 />, label: 'Analytics', roles: ['*'] }
+  ];
+
+  const collabItems = [
+    {
+      path: '/chat',
+      icon: <FiMessageSquare />,
+      label: 'Team Chat',
+      roles: ['*'],
+      badge: onlineUserIds.length > 0 ? `${onlineUserIds.length} live` : null
+    },
+    { path: '/files', icon: <FiFolder />, label: 'Shared Files', roles: ['*'] },
+    { path: '/activity', icon: <FiActivity />, label: 'Activity Feed', roles: ['*'] }
   ];
 
   const managementItems = [
@@ -70,6 +87,45 @@ const Sidebar = () => {
                   </NavLink>
                 </li>
               )
+            ))}
+          </ul>
+        </div>
+
+        <div className="nav-section">
+          {!collapsed && <h4 className="section-title">Collaboration</h4>}
+          <ul className="nav-list">
+            {collabItems.map((item) => (
+              <li key={item.path}>
+                <NavLink
+                  to={item.path}
+                  className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  title={item.label}
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  {!collapsed && (
+                    <span
+                      className="nav-label"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}
+                    >
+                      <span>{item.label}</span>
+                      {item.badge && (
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            color: '#10b981'
+                          }}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </NavLink>
+              </li>
             ))}
           </ul>
         </div>

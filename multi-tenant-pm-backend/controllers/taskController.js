@@ -1,14 +1,49 @@
 const Task = require('../models/Task');
 const Project = require('../models/Project');
 const User = require('../models/User');
+const Comment = require('../models/Comment');
+const SharedFile = require('../models/SharedFile');
 const { createNotification } = require('./notificationController');
+const { recordActivity } = require('./activityController');
 const { sendTaskAssignedEmail } = require('../utils/email');
+const { broadcastToOrg } = require('../utils/realtime');
 
 const TASK_POPULATE = [
   { path: 'assigneeId', select: 'firstName lastName email role' },
   { path: 'createdBy', select: 'firstName lastName email role' },
   { path: 'projectId', select: 'name color isActive members projectManagerId' }
 ];
+
+const enrichTasksWithCollabCounts = async (taskDocs, orgId) => {
+  if (!taskDocs || taskDocs.length === 0) return [];
+  const ids = taskDocs.map(t => t._id);
+
+  const [commentAgg, fileAgg] = await Promise.all([
+    Comment.aggregate([
+      { $match: { orgId, taskId: { $in: ids } } },
+      { $group: { _id: '$taskId', count: { $sum: 1 } } }
+    ]),
+    SharedFile.aggregate([
+      { $match: { orgId, taskId: { $in: ids } } },
+      { $group: { _id: '$taskId', count: { $sum: 1 } } }
+    ])
+  ]);
+
+  const cMap = {};
+  for (const row of commentAgg) cMap[row._id.toString()] = row.count;
+  const fMap = {};
+  for (const row of fileAgg) fMap[row._id.toString()] = row.count;
+
+  return taskDocs.map((doc) => {
+    const obj = doc.toObject ? doc.toObject() : doc;
+    const key = obj._id.toString();
+    return {
+      ...obj,
+      commentCount: cMap[key] || 0,
+      attachmentCount: fMap[key] || 0
+    };
+  });
+};
 
 const recalculateProjectProgress = async (projectId) => {
   if (!projectId) return;
@@ -50,7 +85,6 @@ const createTask = async (req, res) => {
       return res.status(404).json({ message: 'Selected assignee not found in your organization' });
     }
 
-    // Ensure assigned member is part of project members automatically
     await Project.findByIdAndUpdate(project._id, {
       $addToSet: { members: assignee._id }
     });
@@ -72,7 +106,6 @@ const createTask = async (req, res) => {
     await task.populate(TASK_POPULATE);
     await recalculateProjectProgress(project._id);
 
-    // Trigger notification for assigned member
     const senderName = `${req.user.firstName} ${req.user.lastName}`.trim();
     await createNotification({
       orgId: req.user.orgId,
@@ -85,7 +118,17 @@ const createTask = async (req, res) => {
       projectId: project._id
     });
 
-    // Non-blocking email notification
+    await recordActivity({
+      orgId: req.user.orgId,
+      actorId: req.user._id,
+      type: 'task_created',
+      action: `created & assigned task to ${assignee.firstName} ${assignee.lastName}`,
+      targetTitle: task.title,
+      snippet: task.description || '',
+      projectId: project._id,
+      taskId: task._id
+    });
+
     sendTaskAssignedEmail({
       to: assignee.email,
       assigneeName: assignee.firstName,
@@ -96,7 +139,9 @@ const createTask = async (req, res) => {
       dueDate: task.dueDate
     });
 
-    res.status(201).json(task);
+    const [enriched] = await enrichTasksWithCollabCounts([task], req.user.orgId);
+    broadcastToOrg(req.user.orgId, { type: 'task:created', task: enriched });
+    res.status(201).json(enriched);
   } catch (error) {
     console.error('Error creating task:', error);
     res.status(500).json({ message: error.message });
@@ -112,7 +157,8 @@ const getProjectTasks = async (req, res) => {
       .populate(TASK_POPULATE)
       .sort({ order: 1, createdAt: -1 });
 
-    res.json(tasks);
+    const enriched = await enrichTasksWithCollabCounts(tasks, req.user.orgId);
+    res.json(enriched);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -121,7 +167,6 @@ const getProjectTasks = async (req, res) => {
 const getTasks = async (req, res) => {
   try {
     const query = { orgId: req.user.orgId };
-
     if (req.query.projectId && req.query.projectId !== 'all') {
       query.projectId = req.query.projectId;
     }
@@ -147,7 +192,8 @@ const getTasks = async (req, res) => {
     }
 
     const tasks = await taskQuery;
-    res.status(200).json(tasks);
+    const enriched = await enrichTasksWithCollabCounts(tasks, req.user.orgId);
+    res.status(200).json(enriched);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -179,24 +225,16 @@ const updateTask = async (req, res) => {
 
     if (!isPMorAdmin) {
       if (!oldAssigneeId || oldAssigneeId !== userId.toString()) {
-        return res.status(403).json({
-          message: 'You can only update tasks assigned to you'
-        });
+        return res.status(403).json({ message: 'You can only update tasks assigned to you' });
       }
-      // Regular members cannot reassign tasks to others or move across projects
       if (req.body.assigneeId && req.body.assigneeId.toString() !== oldAssigneeId) {
-        return res.status(403).json({
-          message: 'Only Admins or Project Managers can reassign tasks'
-        });
+        return res.status(403).json({ message: 'Only Admins or Project Managers can reassign tasks' });
       }
       if (req.body.projectId && req.body.projectId.toString() !== oldProjectId) {
-        return res.status(403).json({
-          message: 'Only Admins or Project Managers can move tasks between projects'
-        });
+        return res.status(403).json({ message: 'Only Admins or Project Managers can move tasks between projects' });
       }
     }
 
-    // Validate new projectId if changed
     let targetProjectId = oldProjectId;
     if (req.body.projectId && req.body.projectId.toString() !== oldProjectId) {
       const targetProject = await Project.findOne({
@@ -209,7 +247,6 @@ const updateTask = async (req, res) => {
       targetProjectId = targetProject._id.toString();
     }
 
-    // Validate new assigneeId if provided
     let newAssigneeDoc = null;
     if (req.body.assigneeId) {
       newAssigneeDoc = await User.findOne({
@@ -242,7 +279,6 @@ const updateTask = async (req, res) => {
       { new: true, runValidators: true }
     ).populate(TASK_POPULATE);
 
-    // Recalculate progress for affected project(s)
     await recalculateProjectProgress(targetProjectId);
     if (oldProjectId && oldProjectId !== targetProjectId) {
       await recalculateProjectProgress(oldProjectId);
@@ -254,7 +290,6 @@ const updateTask = async (req, res) => {
       : updatedTask.assigneeId?.toString();
     const projectName = updatedTask.projectId?.name || 'Project';
 
-    // Notify newly assigned member whenever assignee changes
     if (newAssigneeId && newAssigneeId !== oldAssigneeId) {
       await createNotification({
         orgId: req.user.orgId,
@@ -265,6 +300,16 @@ const updateTask = async (req, res) => {
         message: `${senderName} assigned you "${updatedTask.title}" in project "${projectName}" (${updatedTask.priority} priority).`,
         taskId: updatedTask._id,
         projectId: updatedTask.projectId?._id || targetProjectId
+      });
+
+      await recordActivity({
+        orgId: req.user.orgId,
+        actorId: req.user._id,
+        type: 'task_assigned',
+        action: `reassigned task to ${updatedTask.assigneeId?.firstName || 'member'}`,
+        targetTitle: updatedTask.title,
+        projectId: updatedTask.projectId?._id || targetProjectId,
+        taskId: updatedTask._id
       });
 
       if (newAssigneeDoc) {
@@ -279,7 +324,6 @@ const updateTask = async (req, res) => {
         });
       }
     } else if (req.body.status && req.body.status !== oldStatus) {
-      // Notify task creator and/or assignee about status change (if different from actor)
       const recipients = new Set();
       const creatorId = updatedTask.createdBy?._id?.toString();
       if (creatorId && creatorId !== userId.toString()) recipients.add(creatorId);
@@ -298,9 +342,21 @@ const updateTask = async (req, res) => {
           projectId: updatedTask.projectId?._id || targetProjectId
         });
       }
+
+      await recordActivity({
+        orgId: req.user.orgId,
+        actorId: req.user._id,
+        type: 'task_status_changed',
+        action: `moved task to ${statusLabel}`,
+        targetTitle: updatedTask.title,
+        projectId: updatedTask.projectId?._id || targetProjectId,
+        taskId: updatedTask._id
+      });
     }
 
-    res.json(updatedTask);
+    const [enriched] = await enrichTasksWithCollabCounts([updatedTask], req.user.orgId);
+    broadcastToOrg(req.user.orgId, { type: 'task:updated', task: enriched });
+    res.json(enriched);
   } catch (error) {
     console.error('ERROR in updateTask:', error);
     res.status(500).json({ message: error.message });
@@ -312,18 +368,16 @@ const deleteTask = async (req, res) => {
     if (!['admin', 'project_manager', 'super_admin'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Permission denied' });
     }
-
     const task = await Task.findOneAndDelete({
       _id: req.params.id,
       orgId: req.user.orgId
     });
-
     if (!task) {
       return res.status(404).json({ message: 'Task not found' });
     }
-
+    await Comment.deleteMany({ taskId: task._id, orgId: req.user.orgId });
     await recalculateProjectProgress(task.projectId);
-
+    broadcastToOrg(req.user.orgId, { type: 'task:deleted', taskId: task._id.toString() });
     res.json({ message: 'Task deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

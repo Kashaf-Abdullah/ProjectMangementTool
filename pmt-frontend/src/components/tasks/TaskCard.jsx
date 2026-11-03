@@ -7,11 +7,14 @@ import {
   FiEdit,
   FiTrash2,
   FiMoreVertical,
-  FiUserCheck
+  FiUserCheck,
+  FiMessageSquare,
+  FiPaperclip
 } from 'react-icons/fi';
 import { format } from 'date-fns';
 import Modal from '../common/Modal';
 import TaskForm from './TaskForm';
+import TaskCommentsModal from './TaskCommentsModal';
 
 const TaskCard = ({
   task,
@@ -19,12 +22,14 @@ const TaskCard = ({
   members = [],
   onUpdate,
   onDelete,
+  onTaskSynced,
   userRole,
   userId
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -125,111 +130,128 @@ const TaskCard = ({
               <span className="project-link muted">Unlinked Project</span>
             )}
 
-            {canEdit && (
-              <div className="task-actions" ref={menuRef}>
-                <button
-                  type="button"
-                  className="menu-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMenu(!showMenu);
-                  }}
-                >
-                  <FiMoreVertical size={15} />
-                </button>
+            <div className="task-actions" ref={menuRef}>
+              <button
+                type="button"
+                className="menu-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMenu(!showMenu);
+                }}
+              >
+                <FiMoreVertical size={15} />
+              </button>
 
-                {showMenu && (
-                  <div className="dropdown-menu task-dropdown">
-                    {isPMorAdmin && (
-                      <>
-                        <button
-                          type="button"
-                          className="dropdown-item"
-                          onClick={() => {
-                            setShowEditModal(true);
-                            setShowMenu(false);
-                          }}
-                        >
-                          <FiEdit size={14} />
-                          Edit Task & Details
-                        </button>
-                        <div className="dropdown-divider"></div>
-                      </>
-                    )}
+              {showMenu && (
+                <div className="dropdown-menu task-dropdown">
+                  <button
+                    type="button"
+                    className="dropdown-item"
+                    onClick={() => {
+                      setShowCommentsModal(true);
+                      setShowMenu(false);
+                    }}
+                  >
+                    <FiMessageSquare size={14} />
+                    Comments & Files ({task.commentCount || 0})
+                  </button>
 
-                    <div className="dropdown-section">
-                      <div className="dropdown-label">Move Status</div>
-                      {[
-                        { id: 'todo', label: 'To Do' },
-                        { id: 'in_progress', label: 'In Progress' },
-                        { id: 'review', label: 'In Review' },
-                        { id: 'done', label: 'Done' }
-                      ].map(st => (
-                        <button
-                          key={st.id}
-                          type="button"
-                          className={`dropdown-subitem ${task.status === st.id ? 'active' : ''}`}
-                          onClick={() => handleStatusChange(st.id)}
-                        >
-                          <span
-                            className="status-dot"
-                            style={{ backgroundColor: getStatusColor(st.id) }}
-                          />
-                          <span>{st.label}</span>
-                        </button>
-                      ))}
-                    </div>
+                  {isPMorAdmin && (
+                    <button
+                      type="button"
+                      className="dropdown-item"
+                      onClick={() => {
+                        setShowEditModal(true);
+                        setShowMenu(false);
+                      }}
+                    >
+                      <FiEdit size={14} />
+                      Edit Task & Details
+                    </button>
+                  )}
 
-                    {isPMorAdmin && members.length > 0 && (
-                      <>
-                        <div className="dropdown-divider"></div>
-                        <div className="dropdown-section">
-                          <div className="dropdown-label">
-                            <FiUserCheck size={12} /> Reassign Member
-                          </div>
-                          <div className="dropdown-scroll-list">
-                            {members.map(m => (
-                              <button
-                                key={m._id}
-                                type="button"
-                                className={`dropdown-subitem ${assigneeIdStr === m._id ? 'active' : ''}`}
-                                onClick={() => handleQuickAssign(m._id)}
-                              >
-                                <span className="mini-avatar">
-                                  {m.firstName?.charAt(0)?.toUpperCase()}
-                                </span>
-                                <span>{m.firstName} {m.lastName}</span>
-                              </button>
-                            ))}
-                          </div>
+                  {canEdit && (
+                    <>
+                      <div className="dropdown-divider"></div>
+                      <div className="dropdown-section">
+                        <div className="dropdown-label">Move Status</div>
+                        {[
+                          { id: 'todo', label: 'To Do' },
+                          { id: 'in_progress', label: 'In Progress' },
+                          { id: 'review', label: 'In Review' },
+                          { id: 'done', label: 'Done' }
+                        ].map(st => (
+                          <button
+                            key={st.id}
+                            type="button"
+                            className={`dropdown-subitem ${task.status === st.id ? 'active' : ''}`}
+                            onClick={() => handleStatusChange(st.id)}
+                          >
+                            <span
+                              className="status-dot"
+                              style={{ backgroundColor: getStatusColor(st.id) }}
+                            />
+                            <span>{st.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {isPMorAdmin && members.length > 0 && (
+                    <>
+                      <div className="dropdown-divider"></div>
+                      <div className="dropdown-section">
+                        <div className="dropdown-label">
+                          <FiUserCheck size={12} /> Reassign Member
                         </div>
-                      </>
-                    )}
+                        <div className="dropdown-scroll-list">
+                          {members.map(m => (
+                            <button
+                              key={m._id}
+                              type="button"
+                              className={`dropdown-subitem ${assigneeIdStr === m._id ? 'active' : ''}`}
+                              onClick={() => handleQuickAssign(m._id)}
+                            >
+                              <span className="mini-avatar">
+                                {m.firstName?.charAt(0)?.toUpperCase()}
+                              </span>
+                              <span>{m.firstName} {m.lastName}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
 
-                    {isPMorAdmin && (
-                      <>
-                        <div className="dropdown-divider"></div>
-                        <button
-                          type="button"
-                          className="dropdown-item delete"
-                          onClick={() => {
-                            setShowMenu(false);
-                            setShowDeleteModal(true);
-                          }}
-                        >
-                          <FiTrash2 size={14} />
-                          Delete Task
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                  {isPMorAdmin && (
+                    <>
+                      <div className="dropdown-divider"></div>
+                      <button
+                        type="button"
+                        className="dropdown-item delete"
+                        onClick={() => {
+                          setShowMenu(false);
+                          setShowDeleteModal(true);
+                        }}
+                      >
+                        <FiTrash2 size={14} />
+                        Delete Task
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="task-body">
+        <div
+          className="task-body"
+          style={{ cursor: 'pointer' }}
+          onClick={() => setShowCommentsModal(true)}
+          title="Click to view comments, replies, and shared files"
+        >
           <h4 className="task-title">{task.title}</h4>
           {task.description && (
             <p className="task-description">{task.description}</p>
@@ -264,7 +286,26 @@ const TaskCard = ({
             )}
           </div>
 
-          <div className="task-badges">
+          <div className="task-badges" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              className="task-collab-Trigger"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowCommentsModal(true);
+              }}
+              title="Comments, Replies & Shared Files"
+            >
+              <FiMessageSquare size={12} />
+              <span>{task.commentCount || 0}</span>
+              {(task.attachmentCount || 0) > 0 && (
+                <>
+                  <FiPaperclip size={11} style={{ marginLeft: '3px' }} />
+                  <span>{task.attachmentCount}</span>
+                </>
+              )}
+            </button>
+
             <span
               className="priority-badge"
               style={{
@@ -278,6 +319,17 @@ const TaskCard = ({
           </div>
         </div>
       </div>
+
+      {/* Task Comments, Replies & File Sharing Modal */}
+      <TaskCommentsModal
+        isOpen={showCommentsModal}
+        onClose={() => setShowCommentsModal(false)}
+        task={task}
+        members={members}
+        userId={userId}
+        userRole={userRole}
+        onTaskUpdated={onTaskSynced}
+      />
 
       {/* Edit Task Modal */}
       <Modal

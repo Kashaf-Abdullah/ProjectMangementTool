@@ -1,4 +1,5 @@
 const Notification = require('../models/Notification');
+const { sendToUser } = require('../utils/realtime');
 
 const createNotification = async ({
   orgId,
@@ -8,7 +9,9 @@ const createNotification = async ({
   title,
   message,
   taskId = null,
-  projectId = null
+  projectId = null,
+  discussionId = null,
+  channelId = null
 }) => {
   try {
     if (!orgId || !recipientId) return null;
@@ -21,9 +24,20 @@ const createNotification = async ({
       message,
       taskId,
       projectId,
+      discussionId,
+      channelId,
       isRead: false
     });
-    return notif;
+    const populated = await Notification.findById(notif._id)
+      .populate('senderId', 'firstName lastName email role')
+      .populate('projectId', 'name color')
+      .populate('taskId', 'title status priority');
+
+    sendToUser(recipientId, {
+      type: 'notification:new',
+      notification: populated
+    });
+    return populated;
   } catch (err) {
     console.error('Error creating notification:', err.message);
     return null;
@@ -36,7 +50,6 @@ const getMyNotifications = async (req, res) => {
     if (req.user.orgId) {
       query.orgId = req.user.orgId;
     }
-
     const [notifications, unreadCount] = await Promise.all([
       Notification.find(query)
         .populate('senderId', 'firstName lastName email role')
@@ -47,10 +60,7 @@ const getMyNotifications = async (req, res) => {
       Notification.countDocuments({ ...query, isRead: false })
     ]);
 
-    res.json({
-      notifications,
-      unreadCount
-    });
+    res.json({ notifications, unreadCount });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -70,7 +80,6 @@ const markNotificationRead = async (req, res) => {
     if (!notification) {
       return res.status(404).json({ message: 'Notification not found' });
     }
-
     res.json(notification);
   } catch (error) {
     res.status(500).json({ message: error.message });

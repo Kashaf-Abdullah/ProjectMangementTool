@@ -12,7 +12,9 @@ import {
   FiCheckCircle,
   FiTrash2,
   FiClipboard,
-  FiBriefcase
+  FiBriefcase,
+  FiAtSign,
+  FiMessageSquare
 } from 'react-icons/fi';
 import '../../styles/components/layout.css';
 
@@ -58,14 +60,40 @@ const Header = () => {
       await markAsRead(notif._id);
     }
     setShowNotifications(false);
-    if (notif.projectId?._id || notif.projectId) {
-      const pid = notif.projectId?._id || notif.projectId;
-      if (notif.type === 'project_member_added') {
-        navigate(`/projects/${pid}`);
-        return;
-      }
+
+    if (notif.channelId || notif.type === 'chat_dm') {
+      navigate('/chat');
+      return;
     }
+
+    const pid = notif.projectId?._id || notif.projectId;
+    const tid = notif.taskId?._id || notif.taskId;
+
+    if (notif.discussionId && pid) {
+      navigate(`/projects/${pid}?tab=discussions`);
+      return;
+    }
+
+    if (tid) {
+      navigate(`/tasks?task=${tid}`);
+      return;
+    }
+
+    if (pid) {
+      navigate(`/projects/${pid}`);
+      return;
+    }
+
     navigate('/tasks');
+  };
+
+  const renderNotifIcon = (type) => {
+    if (type === 'mention') return <FiAtSign size={15} />;
+    if (type === 'chat_dm' || type === 'task_comment' || type === 'discussion_reply') {
+      return <FiMessageSquare size={15} />;
+    }
+    if (type === 'project_member_added') return <FiBriefcase size={15} />;
+    return <FiClipboard size={15} />;
   };
 
   const displayedNotifications = notifFilter === 'unread'
@@ -157,11 +185,7 @@ const Header = () => {
                         onClick={() => handleNotificationClick(notif)}
                       >
                         <div className="notif-icon">
-                          {notif.type === 'project_member_added' ? (
-                            <FiBriefcase size={15} />
-                          ) : (
-                            <FiClipboard size={15} />
-                          )}
+                          {renderNotifIcon(notif.type)}
                         </div>
                         <div className="notif-body">
                           <div className="notif-item-title">{notif.title}</div>
@@ -246,6 +270,15 @@ const Header = () => {
             </Link>
             <Link to="/tasks" onClick={() => setShowMobileMenu(false)}>
               Tasks
+            </Link>
+            <Link to="/chat" onClick={() => setShowMobileMenu(false)}>
+              Team Chat
+            </Link>
+            <Link to="/files" onClick={() => setShowMobileMenu(false)}>
+              Shared Files
+            </Link>
+            <Link to="/activity" onClick={() => setShowMobileMenu(false)}>
+              Activity Feed
             </Link>
             <Link to="/analytics" onClick={() => setShowMobileMenu(false)}>
               Analytics

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { useRealtime } from '../../context/RealtimeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import {
@@ -9,26 +10,31 @@ import {
   FiSearch,
   FiGrid,
   FiList,
-  FiUser
+  FiUser,
+  FiMessageSquare
 } from 'react-icons/fi';
 import TaskCard from './TaskCard';
 import TaskForm from './TaskForm';
+import TaskCommentsModal from './TaskCommentsModal';
 import Modal from '../common/Modal';
 import '../../styles/pages/tasks.css';
 
 const Tasks = () => {
   const { user } = useAuth();
   const { refreshNotifications } = useNotifications();
-  const [searchParams] = useSearchParams();
+  const { subscribe } = useRealtime();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const currentUserId = user?._id || user?.id;
   const initialProjectFilter = searchParams.get('project') || 'all';
+  const focusedTaskParam = searchParams.get('task');
 
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedTaskForComments, setSelectedTaskForComments] = useState(null);
   const [viewMode, setViewMode] = useState('board');
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dragOverCol, setDragOverCol] = useState(null);
@@ -44,6 +50,55 @@ const Tasks = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Open task comments modal automatically if deep-linked via ?task=...
+  useEffect(() => {
+    if (focusedTaskParam && tasks.length > 0) {
+      const target = tasks.find((t) => t._id === focusedTaskParam);
+      if (target) {
+        setSelectedTaskForComments(target);
+      }
+    }
+  }, [focusedTaskParam, tasks]);
+
+  useEffect(() => {
+    const unsubCreated = subscribe('task:created', (evt) => {
+      if (!evt.task) return;
+      setTasks((prev) =>
+        prev.some((t) => t._id === evt.task._id) ? prev : [evt.task, ...prev]
+      );
+    });
+
+    const unsubUpdated = subscribe('task:updated', (evt) => {
+      if (!evt.task) return;
+      setTasks((prev) => prev.map((t) => (t._id === evt.task._id ? evt.task : t)));
+    });
+
+    const unsubDeleted = subscribe('task:deleted', (evt) => {
+      if (!evt.taskId) return;
+      setTasks((prev) => prev.filter((t) => t._id !== evt.taskId));
+    });
+
+    const unsubComment = subscribe('task:comment_added', (evt) => {
+      if (evt.task) {
+        setTasks((prev) => prev.map((t) => (t._id === evt.task._id ? evt.task : t)));
+      }
+    });
+
+    const unsubCommentDel = subscribe('task:comment_deleted', (evt) => {
+      if (evt.task) {
+        setTasks((prev) => prev.map((t) => (t._id === evt.task._id ? evt.task : t)));
+      }
+    });
+
+    return () => {
+      unsubCreated();
+      unsubUpdated();
+      unsubDeleted();
+      unsubComment();
+      unsubCommentDel();
+    };
+  }, [subscribe]);
 
   const fetchData = async () => {
     try {
@@ -99,7 +154,7 @@ const Tasks = () => {
   const handleCreateTask = async (taskData) => {
     try {
       const response = await api.post('/tasks', taskData);
-      setTasks(prev => [response.data, ...prev]);
+      setTasks(prev => (prev.some(t => t._id === response.data._id) ? prev : [response.data, ...prev]));
       setShowCreateModal(false);
       toast.success('Task created and assigned! Notification sent.');
       refreshNotifications();
@@ -129,6 +184,11 @@ const Tasks = () => {
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to delete task');
     }
+  };
+
+  const handleSyncSingleTask = (updatedTask) => {
+    if (!updatedTask) return;
+    setTasks(prev => prev.map(t => (t._id === updatedTask._id ? updatedTask : t)));
   };
 
   const handleDropOnColumn = async (e, newStatus) => {
@@ -167,7 +227,7 @@ const Tasks = () => {
         <div>
           <h1>Tasks</h1>
           <p className="text-muted">
-            {filteredTasks.length} shown of {tasks.length} total tasks • {tasks.filter(t => t.status === 'done').length} completed
+            {filteredTasks.length} shown of {tasks.length} total tasks • Click any task to comment, @mention, or share files
           </p>
         </div>
 
@@ -272,17 +332,6 @@ const Tasks = () => {
         </div>
       </div>
 
-      {projects.length === 0 && canCreateTask && (
-        <div className="alert alert-warning">
-          <div className="alert-content">
-            <div className="alert-title">Create a project first</div>
-            <div className="alert-message">
-              You don't have any projects yet. Create at least one project on the Projects page to start adding tasks.
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Kanban Board View */}
       {viewMode === 'board' ? (
         <div className="kanban-board">
@@ -334,6 +383,7 @@ const Tasks = () => {
                           members={members}
                           onUpdate={handleUpdateTask}
                           onDelete={handleDeleteTask}
+                          onTaskSynced={handleSyncSingleTask}
                           userRole={user?.role}
                           userId={currentUserId}
                         />
@@ -356,13 +406,14 @@ const Tasks = () => {
                 <th>Assigned Member</th>
                 <th>Priority</th>
                 <th>Status</th>
+                <th>Comments</th>
                 <th>Due Date</th>
               </tr>
             </thead>
             <tbody>
               {filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center text-muted">
+                  <td colSpan={7} className="text-center text-muted">
                     No tasks match your current filters.
                   </td>
                 </tr>
@@ -370,7 +421,13 @@ const Tasks = () => {
                 filteredTasks.map(task => (
                   <tr key={task._id}>
                     <td>
-                      <div className="table-task-title">{task.title}</div>
+                      <div
+                        className="table-task-title"
+                        style={{ cursor: 'pointer', color: '#2563eb' }}
+                        onClick={() => setSelectedTaskForComments(task)}
+                      >
+                        {task.title}
+                      </div>
                       {task.description && (
                         <div className="table-task-desc">{task.description}</div>
                       )}
@@ -407,6 +464,16 @@ const Tasks = () => {
                       </select>
                     </td>
                     <td>
+                      <button
+                        type="button"
+                        className="task-collab-Trigger"
+                        onClick={() => setSelectedTaskForComments(task)}
+                      >
+                        <FiMessageSquare size={12} />
+                        <span>{task.commentCount || 0}</span>
+                      </button>
+                    </td>
+                    <td>
                       {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}
                     </td>
                   </tr>
@@ -416,6 +483,24 @@ const Tasks = () => {
           </table>
         </div>
       )}
+
+      {/* Deep-linked or Table-triggered Task Comments Modal */}
+      <TaskCommentsModal
+        isOpen={Boolean(selectedTaskForComments)}
+        onClose={() => {
+          setSelectedTaskForComments(null);
+          if (focusedTaskParam) {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('task');
+            setSearchParams(nextParams, { replace: true });
+          }
+        }}
+        task={selectedTaskForComments}
+        members={members}
+        userId={currentUserId}
+        userRole={user?.role}
+        onTaskUpdated={handleSyncSingleTask}
+      />
 
       {/* Create Task Modal */}
       <Modal

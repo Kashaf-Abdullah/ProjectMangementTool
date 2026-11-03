@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { formatDistanceToNow } from 'date-fns';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import api from '../../services/api';
@@ -14,18 +13,23 @@ import {
   FiClock,
   FiActivity,
   FiBarChart2,
-  FiMessageSquare,
+  FiMessageCircle,
+  FiFolder,
   FiFileText,
   FiPlus
 } from 'react-icons/fi';
 import Modal from '../common/Modal';
 import ProjectForm from './ProjectForm';
+import ProjectDiscussions from './ProjectDiscussions';
+import FilesHub from '../files/FilesHub';
+import ActivityFeed from '../activity/ActivityFeed';
 import TaskForm from '../tasks/TaskForm';
 import TaskCard from '../tasks/TaskCard';
 import '../../styles/pages/projects.css';
 
 const ProjectDetails = () => {
   const { projectId } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { refreshNotifications } = useNotifications();
   const navigate = useNavigate();
@@ -37,11 +41,20 @@ const ProjectDetails = () => {
   const [allProjects, setAllProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [members, setMembers] = useState([]);
+  const [discussionCount, setDiscussionCount] = useState(0);
+  const [fileCount, setFileCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState('tasks');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'tasks');
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    if (requestedTab) {
+      setActiveTab(requestedTab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchProjectDetails();
@@ -67,6 +80,8 @@ const ProjectDetails = () => {
 
       setAllProjects(projectList);
       setProject(foundProject);
+      setDiscussionCount(foundProject.discussionCount || 0);
+      setFileCount(foundProject.fileCount || 0);
       setTasks(Array.isArray(projectTasksRes.data) ? projectTasksRes.data : []);
       setMembers(Array.isArray(usersRes.data) ? usersRes.data : []);
     } catch (error) {
@@ -139,6 +154,11 @@ const ProjectDetails = () => {
     } catch (error) {
       toast.error('Failed to delete task');
     }
+  };
+
+  const handleSyncSingleTask = (updatedTask) => {
+    if (!updatedTask) return;
+    setTasks(prev => prev.map(t => (t._id === updatedTask._id ? updatedTask : t)));
   };
 
   if (loading) {
@@ -259,11 +279,25 @@ const ProjectDetails = () => {
           Tasks ({tasks.length})
         </button>
         <button
-          className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
+          className={`tab-btn ${activeTab === 'discussions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('discussions')}
+        >
+          <FiMessageCircle />
+          Discussions ({discussionCount})
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'files' ? 'active' : ''}`}
+          onClick={() => setActiveTab('files')}
+        >
+          <FiFolder />
+          Files ({fileCount})
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
+          onClick={() => setActiveTab('activity')}
         >
           <FiActivity />
-          Overview
+          Activity Feed
         </button>
         <button
           className={`tab-btn ${activeTab === 'team' ? 'active' : ''}`}
@@ -273,11 +307,11 @@ const ProjectDetails = () => {
           Team ({project.members?.length || 0})
         </button>
         <button
-          className={`tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
-          onClick={() => setActiveTab('activity')}
+          className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
         >
-          <FiMessageSquare />
-          Activity
+          <FiBarChart2 />
+          Overview
         </button>
       </div>
 
@@ -327,12 +361,38 @@ const ProjectDetails = () => {
                     members={members}
                     onUpdate={handleUpdateTask}
                     onDelete={handleDeleteTask}
+                    onTaskSynced={handleSyncSingleTask}
                     userRole={user?.role}
                     userId={currentUserId}
                   />
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'discussions' && (
+          <ProjectDiscussions
+            projectId={project._id}
+            projectName={project.name}
+            members={members}
+            userId={currentUserId}
+            userRole={user?.role}
+            onCountChange={setDiscussionCount}
+          />
+        )}
+
+        {activeTab === 'files' && (
+          <FilesHub
+            fixedProjectId={project._id}
+            onCountChange={setFileCount}
+          />
+        )}
+
+        {activeTab === 'activity' && (
+          <div className="activity-content">
+            <h3 style={{ marginBottom: '12px' }}>Live Project Activity</h3>
+            <ActivityFeed fixedProjectId={project._id} />
           </div>
         )}
 
@@ -389,30 +449,6 @@ const ProjectDetails = () => {
                     <div className="member-info">
                       <div className="member-name">{member.firstName} {member.lastName}</div>
                       <div className="member-role">{member.role?.replace('_', ' ')}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'activity' && (
-          <div className="activity-content">
-            <h3>Recent Project Activity</h3>
-            {tasks.length === 0 ? (
-              <p className="text-muted">No task activity recorded yet for this project.</p>
-            ) : (
-              <div className="project-activity-feed">
-                {tasks.slice(0, 10).map(t => (
-                  <div key={t._id} className="project-activity-row">
-                    <span className="status-dot" style={{ backgroundColor: t.status === 'done' ? '#10b981' : '#3b82f6' }} />
-                    <div>
-                      <strong>{t.assigneeId?.firstName || 'Unassigned'}</strong> — "{t.title}" is currently{' '}
-                      <span className="capitalize">{t.status.replace('_', ' ')}</span>
-                      <div className="text-muted">
-                        Updated {formatDistanceToNow(new Date(t.updatedAt || t.createdAt), { addSuffix: true })}
-                      </div>
                     </div>
                   </div>
                 ))}

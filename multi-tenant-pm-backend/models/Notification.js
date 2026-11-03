@@ -25,7 +25,12 @@ const notificationSchema = new mongoose.Schema({
       'task_reassigned',
       'task_status_changed',
       'task_updated',
-      'project_member_added'
+      'project_member_added',
+      'mention',
+      'task_comment',
+      'discussion_reply',
+      'chat_dm',
+      'file_shared'
     ],
     default: 'task_assigned'
   },
@@ -49,6 +54,16 @@ const notificationSchema = new mongoose.Schema({
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Project',
+    default: null
+  },
+  discussionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Discussion',
+    default: null
+  },
+  channelId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ChatChannel',
     default: null
   },
   isRead: {

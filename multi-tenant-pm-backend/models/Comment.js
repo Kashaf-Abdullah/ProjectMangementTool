@@ -1,49 +1,49 @@
-// models/Comment.js
 const mongoose = require('mongoose');
 
 const commentSchema = new mongoose.Schema({
-  taskId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Task',
-    required: true,
-    index: true
-  },
   orgId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Organization',
     required: true,
     index: true
   },
-  userId: {
+  taskId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  text: {
-    type: String,
+    ref: 'Task',
     required: true,
-    trim: true,
-    maxlength: 1000
+    index: true
   },
-  mentions: [{
+  projectId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
+    ref: 'Project',
+    default: null
+  },
   parentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Comment',
     default: null
   },
+  authorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  content: {
+    type: String,
+    default: '',
+    trim: true,
+    maxlength: 2500
+  },
+  mentions: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   attachments: [{
-    filename: String,
-    url: String,
-    size: Number
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SharedFile'
   }]
-}, {
-  timestamps: true
-});
+}, { timestamps: true });
 
-commentSchema.index({ orgId: 1, taskId: 1 });
-commentSchema.index({ orgId: 1, userId: 1 });
+commentSchema.index({ orgId: 1, taskId: 1, createdAt: 1 });
 
 module.exports = mongoose.model('Comment', commentSchema);

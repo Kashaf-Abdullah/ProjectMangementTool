@@ -6,6 +6,11 @@ const {
   getTasks,
   deleteTask
 } = require('../controllers/taskController');
+const {
+  getTaskComments,
+  addTaskComment,
+  deleteTaskComment
+} = require('../controllers/commentController');
 const { protect } = require('../middleware/auth');
 const tenant = require('../middleware/tenant');
 const { authorize } = require('../middleware/roleGuard');
@@ -20,6 +25,11 @@ router.route('/')
   .post(authorize('admin', 'project_manager', 'super_admin'), createTask);
 
 router.get('/project/:projectId', getProjectTasks);
+
+router.get('/:taskId/comments', getTaskComments);
+router.post('/:taskId/comments', addTaskComment);
+router.delete('/:taskId/comments/:commentId', deleteTaskComment);
+
 router.put('/:id', updateTask);
 router.delete('/:id', authorize('admin', 'project_manager', 'super_admin'), deleteTask);
 

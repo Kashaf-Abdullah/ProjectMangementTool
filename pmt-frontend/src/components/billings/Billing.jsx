@@ -68,8 +68,13 @@ const Billing = () => {
       const response = await api.post('/billing/create-checkout-session');
       const { url } = response.data;
       
-      // Redirect to Stripe Checkout
-      window.location.href = url;
+      if (url && url.startsWith('http')) {
+        window.location.href = url;
+      } else {
+        toast.success('User pack added (+5 seats)!');
+        await fetchBillingData();
+        setProcessingPayment(false);
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create checkout session');
       setProcessingPayment(false);

@@ -9,7 +9,9 @@ import {
   FiCheckCircle,
   FiClock,
   FiBarChart2,
-  FiDownload
+  FiDownload,
+  FiMessageSquare,
+  FiFolder
 } from 'react-icons/fi';
 import StatsCard from './StatsCard';
 import RecentActivity from './RecentActivity';
@@ -253,6 +255,22 @@ const Dashboard = () => {
               </div>
               <h3>Tasks Board</h3>
               <p>Create & assign tasks</p>
+            </Link>
+
+            <Link to="/chat" className="action-card">
+              <div className="action-icon">
+                <FiMessageSquare size={22} />
+              </div>
+              <h3>Team Chat</h3>
+              <p>Channels, DMs & @mentions</p>
+            </Link>
+
+            <Link to="/files" className="action-card">
+              <div className="action-icon">
+                <FiFolder size={22} />
+              </div>
+              <h3>Shared Files</h3>
+              <p>Upload & download specs</p>
             </Link>
 
             <Link to="/analytics" className="action-card">

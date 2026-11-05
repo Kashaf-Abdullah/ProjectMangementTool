@@ -58,7 +58,6 @@ const organizationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-organizationSchema.index({ subdomain: 1 });
 organizationSchema.index({ stripeCustomerId: 1 });
 
 module.exports = mongoose.model('Organization', organizationSchema);

@@ -1,2 +1,7 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
 /password.txt
 E:/MERN_full_project/ProjectMangementTool/pmt-frontend/node_modules

@@ -169,10 +169,184 @@
 .app-main {
   display: flex;
   flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex: 0 0 var(--sidebar-width);
+  flex-direction: column;
+  width: var(--sidebar-width);
+  height: calc(100vh - var(--header-height));
+  position: sticky;
+  top: var(--header-height);
+  padding: var(--spacing-lg) var(--spacing-md);
+  background: white;
+  border-right: 1px solid var(--gray-200);
+  transition: width var(--transition-normal), flex-basis var(--transition-normal);
+}
+
+.sidebar.collapsed {
+  flex-basis: 72px;
+  width: 72px;
+  padding-right: var(--spacing-sm);
+  padding-left: var(--spacing-sm);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xl);
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  color: var(--gray-800);
+  font-size: var(--font-size-lg);
+  white-space: nowrap;
+}
+
+.sidebar-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--gray-600);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+}
+
+.sidebar-toggle:hover {
+  color: var(--primary-color);
+  background: var(--gray-100);
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.nav-section + .nav-section {
+  margin-top: var(--spacing-xl);
+}
+
+.section-title {
+  margin: 0 0 var(--spacing-sm);
+  padding: 0 var(--spacing-sm);
+  color: var(--gray-500);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  min-height: 40px;
+  padding: var(--spacing-sm) var(--spacing-sm);
+  color: var(--gray-600);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.nav-link:hover {
+  color: var(--primary-color);
+  background: var(--gray-50);
+}
+
+.nav-link.active {
+  color: var(--primary-color);
+  background: #eff6ff;
+  font-weight: 600;
+}
+
+.nav-icon {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+}
+
+.nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--gray-200);
+}
+
+.org-info {
+  padding: 0 var(--spacing-sm) var(--spacing-md);
+}
+
+.org-name {
+  overflow: hidden;
+  color: var(--gray-700);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.org-users {
+  color: var(--gray-500);
+  font-size: var(--font-size-xs);
+}
+
+.compact-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: var(--spacing-sm);
+  color: var(--gray-600);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.compact-view-btn:hover {
+  color: var(--primary-color);
+  background: var(--gray-50);
+}
+
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+}
+
+.sidebar.collapsed .nav-link,
+.sidebar.collapsed .compact-view-btn {
+  justify-content: center;
 }
 
 .app-content {
   flex: 1;
+  min-width: 0;
   background: var(--gray-50);
   min-height: calc(100vh - var(--header-height));
 }
@@ -205,6 +379,30 @@
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: block;
+  }
+
+  .sidebar {
+    flex-basis: 72px;
+    width: 72px;
+    padding-right: var(--spacing-sm);
+    padding-left: var(--spacing-sm);
+  }
+
+  .sidebar-header {
+    justify-content: center;
+  }
+
+  .sidebar-header h3,
+  .section-title,
+  .nav-label,
+  .org-info,
+  .compact-view-btn span {
+    display: none;
+  }
+
+  .nav-link,
+  .compact-view-btn {
+    justify-content: center;
   }
   
   .user-name, .user-role {

@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { FiCalendar, FiUser, FiFlag } from 'react-icons/fi';
 import '../../styles/components/forms.css';
 
 const TaskForm = ({ task, projects, onSubmit, onCancel, mode = 'create' }) => {
-  const { user } = useAuth();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -16,7 +14,7 @@ const TaskForm = ({ task, projects, onSubmit, onCancel, mode = 'create' }) => {
     dueDate: '',
     labels: []
   });
-  const [availableUsers, setAvailableUsers] = useState([]);
+  const [organizationUsers, setOrganizationUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -33,49 +31,37 @@ const TaskForm = ({ task, projects, onSubmit, onCancel, mode = 'create' }) => {
         labels: task.labels || []
       });
     }
-    
-    if (projects?.length > 0 && !formData.projectId) {
+  }, [task, mode]);
+
+  useEffect(() => {
+    if ((!task || mode !== 'edit') && projects?.length > 0 && !formData.projectId) {
       setFormData(prev => ({
         ...prev,
         projectId: projects[0]._id
       }));
     }
-    
-    fetchUsers();
-  }, [task, projects, mode]);
+  }, [task, mode, projects, formData.projectId]);
 
   useEffect(() => {
-    if (formData.projectId) {
-      fetchProjectUsers(formData.projectId);
-    }
-  }, [formData.projectId]);
-
-  const fetchUsers = async () => {
-    try {
-      const response = await api.get('/users');
-      setAvailableUsers(response.data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
-
-  const fetchProjectUsers = async (projectId) => {
-    try {
-      const project = projects.find(p => p._id === projectId);
-      if (project?.members) {
-        // Filter users to only include project members
-        const projectMemberIds = project.members.map(m => m._id);
-        const filteredUsers = availableUsers.filter(u => 
-          projectMemberIds.includes(u._id)
-        );
-        if (filteredUsers.length > 0) {
-          setAvailableUsers(filteredUsers);
-        }
+    const fetchUsers = async () => {
+      try {
+        const response = await api.get('/users');
+        setOrganizationUsers(response.data);
+      } catch (error) {
+        console.error('Error fetching users:', error);
       }
-    } catch (error) {
-      console.error('Error fetching project users:', error);
-    }
-  };
+    };
+
+    fetchUsers();
+  }, []);
+
+  const selectedProject = projects?.find(project => project._id === formData.projectId);
+  const projectMemberIds = selectedProject?.members?.map(member =>
+    typeof member === 'string' ? member : member._id
+  );
+  const availableUsers = projectMemberIds?.length
+    ? organizationUsers.filter(member => projectMemberIds.includes(member._id))
+    : organizationUsers;
 
   const handleChange = (e) => {
     const { name, value } = e.target;

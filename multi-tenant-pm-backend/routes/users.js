@@ -27,8 +27,8 @@ router.use(tenant);
 // Check user limit for invite operations only (not for viewing users)
 router.post('/invite', checkUserLimit, authorize('admin', 'super_admin'), inviteUser);
 
-// Get organization users (admin only)
-router.get('/', authorize('admin', 'super_admin'), getOrgUsers);
+// Organization members need the team list for project and task assignment.
+router.get('/', getOrgUsers);
 
 // Update user role (admin only)
 router.put('/role', authorize('admin', 'super_admin'), updateUserRole);

@@ -4,14 +4,10 @@
   "description": "Multi-tenant Project Management Tool Backend",
   "main": "server.js",
   "scripts": {
-<<<<<<< HEAD
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "seed": "node seed.js"
-=======
-    "start": "node server.js",
-    "dev": "node server.js"
->>>>>>> 069e30a653e10f86ca4835e9579f9dbce67189d7
+    "dev": "node server.js",
+    "seed": "node seed.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "license": "ISC",
   "type": "commonjs",

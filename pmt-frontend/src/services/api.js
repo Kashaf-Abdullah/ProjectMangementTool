@@ -1,15 +1,44 @@
 import axios from 'axios';
 
-const api = axios.create({
-  // baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+export const resolveBackendUrl = (relativePath = '') => {
+  if (!relativePath) return '';
+  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+    return relativePath;
+  }
+  if (API_BASE.startsWith('http://') || API_BASE.startsWith('https://')) {
+    try {
+      const parsed = new URL(API_BASE);
+      return `${parsed.origin}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
+    } catch {
+      return relativePath;
+    }
+  }
+  return relativePath;
+};
+
+export const resolveWsUrl = (token = '') => {
+  if (API_BASE.startsWith('http://') || API_BASE.startsWith('https://')) {
+    try {
+      const parsed = new URL(API_BASE);
+      const wsProto = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${wsProto}//${parsed.host}/ws?token=${encodeURIComponent(token)}`;
+    } catch {
+      // Fallback below
+    }
+  }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+};
+
+const api = axios.create({
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -18,16 +47,13 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }

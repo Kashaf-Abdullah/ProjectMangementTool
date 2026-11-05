@@ -1,139 +1,91 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { 
-  FiPlus, 
-  FiSearch, 
-  FiMail, 
-  FiUser, 
-  FiEdit, 
-  FiTrash2,
-  FiShield,
-  FiCheckCircle,
-  FiXCircle
-} from 'react-icons/fi';
+import { FiPlus, FiSearch, FiUser, FiShield, FiCopy } from 'react-icons/fi';
 import UserCard from './UserCard';
 import InviteUserForm from './InviteUserForm';
 import Modal from '../common/Modal';
 import '../../styles/pages/users.css';
 
 const Users = () => {
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const isOrgAdmin = ['admin', 'super_admin'].includes(currentUser?.role);
+
   const [users, setUsers] = useState([]);
+  const [billingStatus, setBillingStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [generatedInviteUrl, setGeneratedInviteUrl] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [billingStatus, setBillingStatus] = useState(null);
 
   useEffect(() => {
     fetchData();
   }, []);
-// In Users.jsx - fetchData function
-const fetchData = async () => {
-  try {
-    const [usersRes, billingRes] = await Promise.all([
-      api.get('/users'),
-      api.get('/billing/status')
-    ]);
-    
-    setUsers(usersRes.data);
-    
-    // Handle billing status - use defaults if error
-    if (billingRes.status === 200) {
+
+  const fetchData = async () => {
+    try {
+      const [usersRes, billingRes] = await Promise.all([
+        api.get('/users'),
+        api.get('/billing/status')
+      ]);
+      setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
       setBillingStatus(billingRes.data);
-    } else {
-      // Use defaults if billing endpoint fails
-      setBillingStatus({
-        userLimit: 5,
-        currentUsers: usersRes.data.length,
-        canAddUsers: usersRes.data.length < 5,
-        stripeCustomerId: null
-      });
+    } catch (error) {
+      toast.error('Failed to load team members');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching data:', error);
-    toast.error('Failed to fetch data');
-    
-    // Set default billing status on error
-    setBillingStatus({
-      userLimit: 5,
-      currentUsers: users.length || 0,
-      canAddUsers: (users.length || 0) < 5,
-      stripeCustomerId: null
-    });
-  } finally {
-    setLoading(false);
-  }
-};
-  // const fetchData = async () => {
+  };
 
-
-  //   try {
-  //     const [usersRes, billingRes] = await Promise.all([
-  //       api.get('/users'),
-  //       api.get('/billing/status')
-  //     ]);
-      
-  //     setUsers(usersRes.data);
-  //     setBillingStatus(billingRes.data);
-  //   } catch (error) {
-  //     toast.error('Failed to fetch data');
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm) return users;
+    const q = searchTerm.toLowerCase();
+    return users.filter(m =>
+      `${m.firstName} ${m.lastName}`.toLowerCase().includes(q) ||
+      m.email?.toLowerCase().includes(q) ||
+      m.role?.toLowerCase().includes(q)
+    );
+  }, [users, searchTerm]);
 
   const handleInviteUser = async (userData) => {
     try {
       const response = await api.post('/users/invite', userData);
-      fetchData(); // Refresh users list
+      await fetchData();
       setShowInviteModal(false);
-      toast.success('Invitation sent successfully!');
-    } catch (error) {
-      const message = error.response?.data?.message || 'Failed to invite user';
-      toast.error(message);
-      
-      // If user limit reached, show billing modal
-      if (error.response?.status === 403 && error.response?.data?.upgradeRequired) {
-        // You could redirect to billing page here
+      if (response.data?.inviteUrl && !response.data?.isActive) {
+        setGeneratedInviteUrl(response.data.inviteUrl);
       }
+      toast.success(response.data?.message || 'Member added successfully!');
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to add member';
+      toast.error(message);
+      throw error;
     }
   };
 
   const handleUpdateRole = async (userId, newRole) => {
     try {
       await api.put('/users/role', { userId, role: newRole });
-      setUsers(users.map(u => 
-        u._id === userId ? { ...u, role: newRole } : u
-      ));
-      toast.success('User role updated!');
+      setUsers(prev => prev.map(u => (u._id === userId ? { ...u, role: newRole } : u)));
+      toast.success('Role updated successfully');
     } catch (error) {
-      toast.error('Failed to update role');
+      toast.error(error.response?.data?.message || 'Failed to update role');
     }
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to remove this user?')) {
-      return;
-    }
-
     try {
-      // Note: You might want to implement soft delete instead
       await api.delete(`/users/${userId}`);
-      setUsers(users.filter(u => u._id !== userId));
-      toast.success('User removed!');
+      setUsers(prev => prev.filter(u => u._id !== userId));
+      fetchData();
+      toast.success('Member removed from organization');
     } catch (error) {
-      toast.error('Failed to remove user');
+      toast.error(error.response?.data?.message || 'Failed to remove user');
     }
   };
-
-  const filteredUsers = users.filter(user => 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   if (loading) {
     return (
@@ -149,64 +101,79 @@ const fetchData = async () => {
         <div>
           <h1>Team Members</h1>
           <p className="text-muted">
-            {users.length} members • {billingStatus?.currentUsers || 0}/{billingStatus?.userLimit || 5} slots used
+            {users.filter(u => u.isActive).length} active members • {users.length} total
           </p>
-          {!billingStatus?.canAddUsers && (
-            <div className="alert warning">
-              <FiXCircle />
-              <span>User limit reached! <a href="/billing">Upgrade plan</a> to add more users.</span>
-            </div>
-          )}
         </div>
-        
+
         <div className="header-actions">
-          <button 
+          <button
             className="btn primary-btn"
             onClick={() => setShowInviteModal(true)}
-            disabled={!billingStatus?.canAddUsers}
+            disabled={billingStatus && !billingStatus.canAddUsers}
           >
             <FiPlus size={16} />
-            Invite User
+            Add / Invite Member
           </button>
         </div>
       </div>
 
-      {/* User Limit Progress */}
+      {generatedInviteUrl && (
+        <div className="alert alert-success">
+          <div className="alert-content">
+            <div className="alert-title">Invitation Link Ready</div>
+            <div className="alert-message">
+              Share this activation link with your team member: <code>{generatedInviteUrl}</code>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn secondary-btn btn-sm"
+            onClick={() => {
+              navigator.clipboard.writeText(generatedInviteUrl);
+              toast.success('Activation link copied!');
+            }}
+          >
+            <FiCopy size={14} /> Copy Link
+          </button>
+        </div>
+      )}
+
       {billingStatus && (
         <div className="limit-progress">
           <div className="progress-header">
-            <span>User Limit</span>
-            <span>{billingStatus.currentUsers}/{billingStatus.userLimit}</span>
+            <span>Organization Seat Usage</span>
+            <span className="tabular-nums">
+              {billingStatus.currentUsers} / {billingStatus.userLimit} active seats
+            </span>
           </div>
           <div className="progress-bar">
-            <div 
+            <div
               className="progress-fill"
-              style={{ 
-                width: `${(billingStatus.currentUsers / billingStatus.userLimit) * 100}%`,
-                backgroundColor: billingStatus.currentUsers >= billingStatus.userLimit 
-                  ? 'var(--danger-color)' 
+              style={{
+                width: `${Math.min(100, (billingStatus.currentUsers / billingStatus.userLimit) * 100)}%`,
+                backgroundColor: billingStatus.currentUsers >= billingStatus.userLimit
+                  ? 'var(--danger-color)'
                   : 'var(--primary-color)'
               }}
             />
           </div>
-          {!billingStatus.canAddUsers && (
+          {!billingStatus.canAddUsers && isOrgAdmin && (
             <div className="progress-warning">
-              <a href="/billing" className="upgrade-link">
+              <Link to="/billing" className="upgrade-link">
                 <FiShield size={14} />
-                Upgrade Plan
-              </a>
+                Upgrade Seat Limit
+              </Link>
             </div>
           )}
         </div>
       )}
 
-      {/* Search */}
-      <div className="search-section">
+      <div className="filters-bar">
         <div className="search-box">
           <FiSearch className="search-icon" />
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Search team members..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
@@ -214,46 +181,37 @@ const fetchData = async () => {
         </div>
       </div>
 
-      {/* Users Grid */}
       {filteredUsers.length === 0 ? (
         <div className="empty-state">
           <FiUser className="empty-state-icon" />
-          <h3>No users found</h3>
-          <p>Invite team members to collaborate</p>
-          <button 
-            className="btn primary-btn mt-md"
-            onClick={() => setShowInviteModal(true)}
-            disabled={!billingStatus?.canAddUsers}
-          >
-            <FiPlus size={16} />
-            Invite User
-          </button>
+          <h3>No members found</h3>
+          <p>Add team members so you can assign tasks across projects.</p>
         </div>
       ) : (
         <div className="users-grid">
-          {filteredUsers.map(user => (
+          {filteredUsers.map(member => (
             <UserCard
-              key={user._id}
-              user={user}
-              currentUserId={user?._id}
-              onUpdateRole={handleUpdateRole}
-              onDelete={handleDeleteUser}
+              key={member._id}
+              user={member}
+              currentUserId={currentUserId}
+              onUpdateRole={isOrgAdmin ? handleUpdateRole : null}
+              onDelete={isOrgAdmin ? handleDeleteUser : null}
             />
           ))}
         </div>
       )}
 
-      {/* Invite Modal */}
       <Modal
         isOpen={showInviteModal}
         onClose={() => setShowInviteModal(false)}
-        title="Invite Team Member"
+        title="Add or Invite Team Member"
       >
         <InviteUserForm
           onSubmit={handleInviteUser}
           onCancel={() => setShowInviteModal(false)}
           currentUsers={billingStatus?.currentUsers || 0}
           userLimit={billingStatus?.userLimit || 5}
+          canAssignAdmin={isOrgAdmin}
         />
       </Modal>
     </div>

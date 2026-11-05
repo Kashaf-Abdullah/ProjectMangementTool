@@ -445,3 +445,63 @@
     padding: 20px;
   }
 }
+
+.dashboard-analytics-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-analytics-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+.section-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-head-row h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.mini-project-bars,
+.mini-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mini-proj-top,
+.mini-status-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+  margin-bottom: 6px;
+}
+
+.mini-proj-name,
+.mini-status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #1e293b;
+  text-decoration: none;
+}
+
+.mini-proj-name:hover {
+  color: #2563eb;
+}
+
+.mini-proj-meta {
+  font-size: 12.5px;
+  color: #64748b;
+}

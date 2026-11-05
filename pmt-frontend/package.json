@@ -1,7 +1,7 @@
 {
   "name": "pmt-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,6 @@
     "@stripe/stripe-js": "^8.6.0",
     "axios": "^1.13.2",
     "date-fns": "^4.1.0",
-    "dotenv": "^17.2.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hot-toast": "^2.6.0",

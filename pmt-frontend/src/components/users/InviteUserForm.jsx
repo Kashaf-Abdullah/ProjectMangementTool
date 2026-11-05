@@ -1,71 +1,70 @@
 import React, { useState } from 'react';
-import { FiMail, FiUser, FiShield } from 'react-icons/fi';
+import { FiMail, FiUser, FiShield, FiLock } from 'react-icons/fi';
 import '../../styles/components/forms.css';
 
-const InviteUserForm = ({ onSubmit, onCancel, currentUsers, userLimit }) => {
+const InviteUserForm = ({ onSubmit, onCancel, currentUsers, userLimit, canAssignAdmin = true }) => {
+  const [addMode, setAddMode] = useState('direct'); // 'direct' | 'invite'
   const [formData, setFormData] = useState({
     email: '',
     firstName: '',
     lastName: '',
-    role: 'user'
+    role: 'user',
+    password: ''
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+      setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
   const validateForm = () => {
     const newErrors = {};
-
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Email is invalid';
     }
-
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'First name is required';
     }
-
     if (!formData.lastName.trim()) {
       newErrors.lastName = 'Last name is required';
     }
-
+    if (addMode === 'direct' && (!formData.password || formData.password.length < 8)) {
+      newErrors.password = 'Password must be at least 8 characters';
+    }
     return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
 
-    // Check user limit
     if (currentUsers >= userLimit) {
       setErrors({ form: 'User limit reached. Please upgrade your plan.' });
       return;
     }
 
     setLoading(true);
-    
     try {
-      await onSubmit(formData);
+      await onSubmit({
+        email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        role: formData.role,
+        ...(addMode === 'direct'
+          ? { password: formData.password, activateImmediately: true }
+          : { activateImmediately: false })
+      });
     } catch (error) {
       console.error('Form submission error:', error);
     } finally {
@@ -74,23 +73,39 @@ const InviteUserForm = ({ onSubmit, onCancel, currentUsers, userLimit }) => {
   };
 
   const roleOptions = [
-    { value: 'admin', label: 'Admin', description: 'Full access to all features' },
-    { value: 'project_manager', label: 'Project Manager', description: 'Manage projects and tasks' },
-    { value: 'user', label: 'User', description: 'Basic task management' }
+    ...(canAssignAdmin
+      ? [
+          { value: 'admin', label: 'Admin', description: 'Full organization & billing access' },
+          { value: 'project_manager', label: 'Project Manager', description: 'Create projects & assign tasks' }
+        ]
+      : []),
+    { value: 'user', label: 'Team Member', description: 'Work on assigned tasks & update statuses' }
   ];
 
   return (
     <form onSubmit={handleSubmit} className="invite-form">
+      <div className="mode-switch-tabs">
+        <button
+          type="button"
+          className={`mode-tab-btn ${addMode === 'direct' ? 'active' : ''}`}
+          onClick={() => setAddMode('direct')}
+        >
+          Add Active Member Immediately
+        </button>
+        <button
+          type="button"
+          className={`mode-tab-btn ${addMode === 'invite' ? 'active' : ''}`}
+          onClick={() => setAddMode('invite')}
+        >
+          Send Invite Link
+        </button>
+      </div>
+
       <div className="form-info">
         <div className="limit-info">
-          <span className="limit-label">User Limit:</span>
+          <span className="limit-label">Active Seats:</span>
           <span className="limit-value">{currentUsers}/{userLimit}</span>
         </div>
-        {currentUsers >= userLimit && (
-          <div className="limit-warning">
-            User limit reached. Please upgrade your plan to invite more users.
-          </div>
-        )}
       </div>
 
       <div className="form-row">
@@ -106,18 +121,14 @@ const InviteUserForm = ({ onSubmit, onCancel, currentUsers, userLimit }) => {
             value={formData.firstName}
             onChange={handleChange}
             className={`form-input ${errors.firstName ? 'error' : ''}`}
-            placeholder="John"
+            placeholder="Ayesha"
             disabled={currentUsers >= userLimit}
           />
-          {errors.firstName && (
-            <span className="form-error">{errors.firstName}</span>
-          )}
+          {errors.firstName && <span className="form-error">{errors.firstName}</span>}
         </div>
 
         <div className="form-group">
-          <label htmlFor="lastName" className="form-label">
-            Last Name *
-          </label>
+          <label htmlFor="lastName" className="form-label">Last Name *</label>
           <input
             type="text"
             id="lastName"
@@ -125,12 +136,10 @@ const InviteUserForm = ({ onSubmit, onCancel, currentUsers, userLimit }) => {
             value={formData.lastName}
             onChange={handleChange}
             className={`form-input ${errors.lastName ? 'error' : ''}`}
-            placeholder="Doe"
+            placeholder="Khan"
             disabled={currentUsers >= userLimit}
           />
-          {errors.lastName && (
-            <span className="form-error">{errors.lastName}</span>
-          )}
+          {errors.lastName && <span className="form-error">{errors.lastName}</span>}
         </div>
       </div>
 
@@ -146,19 +155,37 @@ const InviteUserForm = ({ onSubmit, onCancel, currentUsers, userLimit }) => {
           value={formData.email}
           onChange={handleChange}
           className={`form-input ${errors.email ? 'error' : ''}`}
-          placeholder="john@example.com"
+          placeholder="ayesha@company.com"
           disabled={currentUsers >= userLimit}
         />
-        {errors.email && (
-          <span className="form-error">{errors.email}</span>
-        )}
-        <div className="form-hint">
-          An invitation email will be sent to this address
-        </div>
+        {errors.email && <span className="form-error">{errors.email}</span>}
       </div>
 
+      {addMode === 'direct' && (
+        <div className="form-group">
+          <label htmlFor="password" className="form-label">
+            <FiLock className="form-icon" />
+            Initial Password *
+          </label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            className={`form-input ${errors.password ? 'error' : ''}`}
+            placeholder="Minimum 8 characters"
+            disabled={currentUsers >= userLimit}
+          />
+          {errors.password && <span className="form-error">{errors.password}</span>}
+          <div className="form-hint">
+            Member will be immediately active and available for task assignments.
+          </div>
+        </div>
+      )}
+
       <div className="form-group">
-        <label htmlFor="role" className="form-label">
+        <label className="form-label">
           <FiShield className="form-icon" />
           Role *
         </label>
@@ -182,34 +209,20 @@ const InviteUserForm = ({ onSubmit, onCancel, currentUsers, userLimit }) => {
         </div>
       </div>
 
-      {errors.form && (
-        <div className="form-error-message">
-          {errors.form}
-        </div>
-      )}
+      {errors.form && <div className="form-error-message">{errors.form}</div>}
 
       <div className="form-actions">
-        <button 
-          type="button" 
-          className="btn secondary-btn"
-          onClick={onCancel}
-          disabled={loading}
-        >
+        <button type="button" className="btn secondary-btn" onClick={onCancel} disabled={loading}>
           Cancel
         </button>
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           className="btn primary-btn"
           disabled={loading || currentUsers >= userLimit}
         >
-          {loading ? (
-            <>
-              <span className="btn-spinner"></span>
-              Sending Invitation...
-            </>
-          ) : (
-            'Send Invitation'
-          )}
+          {loading
+            ? 'Saving...'
+            : (addMode === 'direct' ? 'Add Team Member' : 'Send Invitation')}
         </button>
       </div>
     </form>

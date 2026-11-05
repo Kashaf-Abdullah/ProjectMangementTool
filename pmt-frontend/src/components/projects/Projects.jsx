@@ -1,28 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { 
-  FiPlus, 
-  FiSearch, 
-  FiFilter, 
-  FiEdit, 
-  FiTrash2,
-  FiUsers,
-  FiCalendar,
-  FiCheckCircle
-} from 'react-icons/fi';
+import { FiPlus, FiSearch, FiBriefcase } from 'react-icons/fi';
 import ProjectCard from './ProjectCard';
 import ProjectForm from './ProjectForm';
+import TaskForm from '../tasks/TaskForm';
 import Modal from '../common/Modal';
+import '../../styles/pages/projects.css';
 
 const Projects = () => {
   const { user } = useAuth();
+  const { refreshNotifications } = useNotifications();
+
   const [projects, setProjects] = useState([]);
-  const [filteredProjects, setFilteredProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [taskModalProjectId, setTaskModalProjectId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
@@ -30,14 +25,10 @@ const Projects = () => {
     fetchProjects();
   }, []);
 
-  useEffect(() => {
-    filterProjects();
-  }, [projects, searchTerm, filterStatus]);
-
   const fetchProjects = async () => {
     try {
       const response = await api.get('/projects');
-      setProjects(response.data);
+      setProjects(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       toast.error('Failed to fetch projects');
     } finally {
@@ -45,46 +36,39 @@ const Projects = () => {
     }
   };
 
-  const filterProjects = () => {
-    let filtered = [...projects];
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(project =>
-        project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        project.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Status filter
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(project =>
-        filterStatus === 'active' ? project.isActive : !project.isActive
-      );
-    }
-
-    setFilteredProjects(filtered);
-  };
+  const filteredProjects = useMemo(() => {
+    return projects.filter(project => {
+      if (searchTerm) {
+        const q = searchTerm.toLowerCase();
+        const matches = project.name?.toLowerCase().includes(q) ||
+          project.description?.toLowerCase().includes(q);
+        if (!matches) return false;
+      }
+      if (filterStatus !== 'all') {
+        const isActive = filterStatus === 'active';
+        if (project.isActive !== isActive) return false;
+      }
+      return true;
+    });
+  }, [projects, searchTerm, filterStatus]);
 
   const handleCreateProject = async (projectData) => {
     try {
       const response = await api.post('/projects', projectData);
-      setProjects([response.data, ...projects]);
+      setProjects(prev => [response.data, ...prev]);
       setShowCreateModal(false);
       toast.success('Project created successfully!');
+      refreshNotifications();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create project');
+      throw error;
     }
   };
 
   const handleDeleteProject = async (projectId) => {
-    if (!window.confirm('Are you sure you want to delete this project?')) {
-      return;
-    }
-
     try {
       await api.delete(`/projects/${projectId}`);
-      setProjects(projects.filter(p => p._id !== projectId));
+      setProjects(prev => prev.filter(p => p._id !== projectId));
       toast.success('Project deleted successfully!');
     } catch (error) {
       toast.error('Failed to delete project');
@@ -96,16 +80,27 @@ const Projects = () => {
       const response = await api.put(`/projects/${projectId}`, {
         isActive: !currentStatus
       });
-      
-      setProjects(projects.map(p => 
-        p._id === projectId ? response.data : p
-      ));
-      
+      setProjects(prev => prev.map(p => (p._id === projectId ? response.data : p)));
       toast.success(`Project ${currentStatus ? 'archived' : 'activated'}!`);
     } catch (error) {
       toast.error('Failed to update project status');
     }
   };
+
+  const handleCreateTaskInProject = async (taskData) => {
+    try {
+      await api.post('/tasks', taskData);
+      setTaskModalProjectId(null);
+      toast.success('Task created and assigned in project!');
+      fetchProjects();
+      refreshNotifications();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to create task');
+      throw error;
+    }
+  };
+
+  const canManage = ['admin', 'project_manager', 'super_admin'].includes(user?.role);
 
   if (loading) {
     return (
@@ -124,10 +119,10 @@ const Projects = () => {
             {projects.length} projects • {projects.filter(p => p.isActive).length} active
           </p>
         </div>
-        
+
         <div className="header-actions">
-          {['admin', 'project_manager'].includes(user?.role) && (
-            <button 
+          {canManage && (
+            <button
               className="btn primary-btn"
               onClick={() => setShowCreateModal(true)}
             >
@@ -138,7 +133,6 @@ const Projects = () => {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="filters-bar">
         <div className="search-box">
           <FiSearch className="search-icon" />
@@ -150,9 +144,9 @@ const Projects = () => {
             className="search-input"
           />
         </div>
-        
+
         <div className="filter-options">
-          <select 
+          <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
             className="filter-select"
@@ -164,14 +158,13 @@ const Projects = () => {
         </div>
       </div>
 
-      {/* Projects Grid */}
       {filteredProjects.length === 0 ? (
         <div className="empty-state">
-          {/* <FiBriefcase className="empty-state-icon" /> */}
+          <FiBriefcase className="empty-state-icon" />
           <h3>No projects found</h3>
-          <p>Create your first project to get started</p>
-          {['admin', 'project_manager'].includes(user?.role) && (
-            <button 
+          <p>Create your first project to organize tasks and collaborate with your team.</p>
+          {canManage && (
+            <button
               className="btn primary-btn mt-md"
               onClick={() => setShowCreateModal(true)}
             >
@@ -188,6 +181,7 @@ const Projects = () => {
               project={project}
               onDelete={handleDeleteProject}
               onStatusToggle={handleStatusToggle}
+              onQuickAddTask={(pid) => setTaskModalProjectId(pid)}
               userRole={user?.role}
             />
           ))}
@@ -203,6 +197,20 @@ const Projects = () => {
         <ProjectForm
           onSubmit={handleCreateProject}
           onCancel={() => setShowCreateModal(false)}
+        />
+      </Modal>
+
+      {/* Quick Create Task Inside Specific Project Modal */}
+      <Modal
+        isOpen={!!taskModalProjectId}
+        onClose={() => setTaskModalProjectId(null)}
+        title="Create Task in Project"
+      >
+        <TaskForm
+          projects={projects}
+          defaultProjectId={taskModalProjectId || ''}
+          onSubmit={handleCreateTaskInProject}
+          onCancel={() => setTaskModalProjectId(null)}
         />
       </Modal>
     </div>

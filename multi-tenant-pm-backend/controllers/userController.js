@@ -1,198 +1,8 @@
-// controllers/userController.js (COMPLETE VERSION)
 const User = require('../models/User');
 const Organization = require('../models/Organization');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const { sendInviteEmail } = require('../utils/email');
-const jwt = require('jsonwebtoken');
-const bcrypt=require('bcrypt');
-
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE });
-};
-
-// const inviteUser = async (req, res) => {
-//   try {
-//     const orgId = req.user.orgId;
-//     const org = await Organization.findById(orgId);
-
-//     const currentUsers = await User.countDocuments({ 
-//       orgId, 
-//       isActive: true 
-//     });
-
-//     // userLimit already checked by middleware, but double-check
-//     if (currentUsers >= org.userLimit) {
-//       return res.status(403).json({ 
-//         message: 'User limit reached. Upgrade plan first.',
-//         currentUsers,
-//         userLimit: org.userLimit 
-//       });
-//     }
-
-//     const { email, firstName, lastName, role } = req.body;
-    
-//     // Role validation based on inviter's role
-//     const allowedRoles = req.user.role === 'admin' 
-//       ? ['admin', 'project_manager', 'user'] 
-//       : ['user'];
-
-//     if (!allowedRoles.includes(role)) {
-//       return res.status(403).json({ 
-//         message: `Cannot assign role '${role}'. Allowed: ${allowedRoles.join(', ')}` 
-//       });
-//     }
-
-//     // Check if email already exists
-//     const existingUser = await User.findOne({ email });
-//     if (existingUser && existingUser.isActive) {
-//       return res.status(400).json({ message: 'Email already registered' });
-//     }
-
-//     const inviteToken = crypto.randomBytes(32).toString('hex');
-//     const tokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-
-//     const user = await User.create({
-//       email,
-//       firstName,
-//       lastName,
-//       orgId,
-//       role,
-//       inviteToken,
-//       inviteTokenExpiry: new Date(tokenExpiry),
-//       isActive: false
-//     });
-
-//     // Send invitation email
-//     const inviteUrl = `${process.env.CLIENT_URL}/activate/${inviteToken}`;
-//     await sendInviteEmail(email, firstName, inviteToken, org.name, inviteUrl);
-
-//     // Update org currentUsers count
-//     org.currentUsers = currentUsers + 1;
-//     await org.save();
-
-//     res.status(201).json({ 
-//       message: 'User invited successfully',
-//       userId: user._id,
-//       email: user.email,
-//       role: user.role
-//     });
-
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-
-
-// const inviteUser = async (req, res) => {
-//   try {
-//     const orgId = req.user.orgId;
-//     const org = await Organization.findById(orgId);
-
-//     if (!org) {
-//       return res.status(404).json({ message: 'Organization not found' });
-//     }
-
-//     const currentUsers = await User.countDocuments({ 
-//       orgId, 
-//       isActive: true 
-//     });
-
-//     // Check user limit (just in case middleware didn't catch it)
-//     const userLimit = org.userLimit || 5;
-//     if (currentUsers >= userLimit) {
-//       return res.status(403).json({ 
-//         message: 'User limit reached. Upgrade plan first.',
-//         currentUsers,
-//         userLimit,
-//         upgradeRequired: true
-//       });
-//     }
-
-//     const { email, firstName, lastName, role } = req.body;
-    
-//     // Validate required fields
-//     if (!email || !firstName || !lastName || !role) {
-//       return res.status(400).json({ 
-//         message: 'Missing required fields: email, firstName, lastName, role' 
-//       });
-//     }
-
-//     // Role validation based on inviter's role
-//     const allowedRoles = req.user.role === 'admin' 
-//       ? ['admin', 'project_manager', 'user'] 
-//       : ['user'];
-
-//     if (!allowedRoles.includes(role)) {
-//       return res.status(403).json({ 
-//         message: `Cannot assign role '${role}'. Allowed: ${allowedRoles.join(', ')}` 
-//       });
-//     }
-
-//     // Check if email already exists (active or inactive)
-//     const existingUser = await User.findOne({ email });
-//     if (existingUser) {
-//       if (existingUser.isActive) {
-//         return res.status(400).json({ message: 'Email already registered' });
-//       } else {
-//         // User exists but is inactive - resend invitation
-//         existingUser.inviteToken = crypto.randomBytes(32).toString('hex');
-//         existingUser.inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-//         await existingUser.save();
-        
-//         // Resend invitation email
-//         const inviteUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/activate/${existingUser.inviteToken}`;
-//         await sendInviteEmail(email, firstName, existingUser.inviteToken, org.name, inviteUrl);
-        
-//         return res.status(200).json({ 
-//           message: 'Invitation resent successfully',
-//           userId: existingUser._id
-//         });
-//       }
-//     }
-
-//     const inviteToken = crypto.randomBytes(32).toString('hex');
-//     const tokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-
-//     // Create temporary password that will be changed on activation
-//     const tempPassword = crypto.randomBytes(8).toString('hex');
-    
-//     const user = await User.create({
-//       email,
-//       firstName,
-//       lastName,
-//       password: tempPassword, // Add password field
-//       orgId,
-//       role,
-//       inviteToken,
-//       inviteTokenExpiry: new Date(tokenExpiry),
-//       isActive: false
-//     });
-
-//     // Send invitation email
-//     const inviteUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/activate/${inviteToken}`;
-//     await sendInviteEmail(email, firstName, inviteToken, org.name, inviteUrl);
-
-//     // Update org currentUsers count (optional - you might want to track active users only)
-//     org.currentUsers = (org.currentUsers || 0) + 1;
-//     await org.save();
-
-//     res.status(201).json({ 
-//       message: 'User invited successfully',
-//       userId: user._id,
-//       email: user.email,
-//       role: user.role
-//     });
-
-//   } catch (error) {
-//     console.error('Error in inviteUser:', error);
-//     res.status(500).json({ 
-//       message: 'Server error',
-//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
-//     });
-//   }
-// };
-
 
 const inviteUser = async (req, res) => {
   try {
@@ -203,15 +13,14 @@ const inviteUser = async (req, res) => {
       return res.status(404).json({ message: 'Organization not found' });
     }
 
-    const currentUsers = await User.countDocuments({ 
-      orgId, 
-      isActive: true 
+    const currentUsers = await User.countDocuments({
+      orgId,
+      isActive: true
     });
 
-    // Check user limit
     const userLimit = org.userLimit || 5;
     if (currentUsers >= userLimit) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         message: 'User limit reached. Upgrade plan first.',
         currentUsers,
         userLimit,
@@ -219,75 +28,97 @@ const inviteUser = async (req, res) => {
       });
     }
 
-    const { email, firstName, lastName, role } = req.body;
-    
-    // Validate required fields
+    const { email, firstName, lastName, role, password, activateImmediately } = req.body;
+
     if (!email || !firstName || !lastName || !role) {
-      return res.status(400).json({ 
-        message: 'Missing required fields: email, firstName, lastName, role' 
+      return res.status(400).json({
+        message: 'Missing required fields: email, firstName, lastName, role'
       });
     }
 
-    // Role validation
-    const allowedRoles = req.user.role === 'admin' 
-      ? ['admin', 'project_manager', 'user'] 
+    const allowedRoles = ['admin', 'super_admin'].includes(req.user.role)
+      ? ['admin', 'project_manager', 'user']
       : ['user'];
 
     if (!allowedRoles.includes(role)) {
-      return res.status(403).json({ 
-        message: `Cannot assign role '${role}'. Allowed: ${allowedRoles.join(', ')}` 
+      return res.status(403).json({
+        message: `Cannot assign role '${role}'. Allowed: ${allowedRoles.join(', ')}`
       });
     }
 
-    // Check if email already exists
-    const existingUser = await User.findOne({ email });
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await User.findOne({ email: normalizedEmail });
+
+    // Direct active member creation when password is provided
+    if (activateImmediately || (password && password.length >= 8)) {
+      if (existingUser) {
+        return res.status(400).json({ message: 'Email already registered' });
+      }
+      if (!password || password.length < 8) {
+        return res.status(400).json({ message: 'Password must be at least 8 characters for direct member creation' });
+      }
+
+      // User.create triggers pre-save password hashing automatically
+      const newUser = await User.create({
+        email: normalizedEmail,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        password,
+        orgId,
+        role,
+        isActive: true
+      });
+
+      org.currentUsers = await User.countDocuments({ orgId, isActive: true });
+      await org.save();
+
+      return res.status(201).json({
+        message: 'Team member added and activated successfully',
+        userId: newUser._id,
+        email: newUser.email,
+        role: newUser.role,
+        isActive: true
+      });
+    }
+
+    // Standard email invitation flow
     if (existingUser) {
       if (existingUser.isActive) {
         return res.status(400).json({ message: 'Email already registered' });
-      } else {
-        // User exists but is inactive - resend invitation
-        
-        // ✅ FIX: Hash password manually
-        const tempPassword = crypto.randomBytes(8).toString('hex');
-        const hashedPassword = await bcrypt.hash(tempPassword, 12);
-        
-        const newToken = crypto.randomBytes(32).toString('hex');
-        
-        // ✅ FIX: Use updateOne instead of save() to avoid pre-save hook
-        await User.updateOne(
-          { _id: existingUser._id },
-          {
-            password: hashedPassword,
-            inviteToken: newToken,
-            inviteTokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000)
-          }
-        );
-        
-        // Resend invitation email
-        const inviteUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/activate/${newToken}`;
-        await sendInviteEmail(email, firstName, newToken, org.name, inviteUrl);
-        
-        return res.status(200).json({ 
-          message: 'Invitation resent successfully',
-          userId: existingUser._id
-        });
       }
+      const tempPassword = crypto.randomBytes(8).toString('hex');
+      const hashedPassword = await bcrypt.hash(tempPassword, 12);
+      const newToken = crypto.randomBytes(32).toString('hex');
+
+      await User.updateOne(
+        { _id: existingUser._id },
+        {
+          password: hashedPassword,
+          inviteToken: newToken,
+          inviteTokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        }
+      );
+
+      const inviteUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/activate/${newToken}`;
+      await sendInviteEmail(normalizedEmail, firstName, newToken, org.name, inviteUrl);
+
+      return res.status(200).json({
+        message: 'Invitation resent successfully',
+        userId: existingUser._id,
+        inviteUrl
+      });
     }
 
     const inviteToken = crypto.randomBytes(32).toString('hex');
-    const tokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-
-    // Create temporary password
+    const tokenExpiry = Date.now() + 24 * 60 * 60 * 1000;
     const tempPassword = crypto.randomBytes(8).toString('hex');
-    
-    // ✅ FIX: Hash password manually before creating user
-    const hashedPassword = await bcrypt.hash(tempPassword, 12);
-    
+
+    // User.create hashes tempPassword via pre-save hook
     const user = await User.create({
-      email,
-      firstName,
-      lastName,
-      password: hashedPassword, // Already hashed
+      email: normalizedEmail,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      password: tempPassword,
       orgId,
       role,
       inviteToken,
@@ -295,81 +126,39 @@ const inviteUser = async (req, res) => {
       isActive: false
     });
 
-    // Send invitation email
     const inviteUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/activate/${inviteToken}`;
-    await sendInviteEmail(email, firstName, inviteToken, org.name, inviteUrl);
+    await sendInviteEmail(normalizedEmail, firstName, inviteToken, org.name, inviteUrl);
 
-    // Update org currentUsers count
-    org.currentUsers = (org.currentUsers || 0) + 1;
-    await org.save();
-
-    res.status(201).json({ 
+    res.status(201).json({
       message: 'User invited successfully',
       userId: user._id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      inviteUrl
     });
-
   } catch (error) {
     console.error('Error in inviteUser:', error);
-    res.status(500).json({ 
-      message: 'Server error',
-      error: error.message // Show actual error
+    res.status(500).json({
+      message: error.message || 'Server error'
     });
   }
 };
-// const activateUser = async (req, res) => {
-//   try {
-//     const { token } = req.params;
-//     const user = await User.findOne({ 
-//       inviteToken: token, 
-//       inviteTokenExpiry: { $gt: Date.now() },
-//       isActive: false
-//     });
-
-//     if (!user) {
-//       return res.status(400).json({ 
-//         message: 'Invalid or expired invitation token' 
-//       });
-//     }
-
-//     // Activate user
-//     user.isActive = true;
-//     user.inviteToken = null;
-//     user.inviteTokenExpiry = null;
-    
-//     // Generate password hash (user will set password on frontend)
-//     await user.save();
-
-//     const jwtToken = generateToken(user._id);
-    
-//     res.json({
-//       message: 'Account activated successfully',
-//       token: jwtToken,
-//       user: {
-//         id: user._id,
-//         email: user.email,
-//         role: user.role,
-//         orgId: user.orgId,
-//         firstName: user.firstName,
-//         lastName: user.lastName
-//       }
-//     });
-
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
 
 const getOrgUsers = async (req, res) => {
   try {
-    const users = await User.find({ 
-      orgId: req.user.orgId,
-      isActive: true 
-    })
-    .select('-password -inviteToken -inviteTokenExpiry')
-    .sort({ createdAt: -1 });
-    
+    if (!req.user.orgId && req.user.role !== 'super_admin') {
+      return res.json([]);
+    }
+
+    const query = req.user.orgId ? { orgId: req.user.orgId } : {};
+    if (req.query.activeOnly === 'true') {
+      query.isActive = true;
+    }
+
+    const users = await User.find(query)
+      .select('-password -inviteToken -inviteTokenExpiry')
+      .sort({ isActive: -1, createdAt: -1 });
+
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -386,10 +175,10 @@ const updateUserRole = async (req, res) => {
     }
 
     const user = await User.findOneAndUpdate(
-      { _id: userId, orgId: req.user.orgId, isActive: true },
+      { _id: userId, orgId: req.user.orgId },
       { role },
       { new: true }
-    ).select('-password');
+    ).select('-password -inviteToken -inviteTokenExpiry');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -401,27 +190,37 @@ const updateUserRole = async (req, res) => {
   }
 };
 
-// controllers/userController.js
-const getUsers = async (req, res) => {
+const deleteUser = async (req, res) => {
   try {
-    // Check if user has orgId
-    if (!req.user.orgId) {
-      return res.status(403).json({ message: 'Organization not assigned' });
+    const targetId = req.params.id;
+    if (targetId === req.user._id.toString()) {
+      return res.status(400).json({ message: 'Cannot remove your own account' });
     }
 
-    const users = await User.find({ 
-      orgId: req.user.orgId 
-    }).select('-password');
+    const deleted = await User.findOneAndDelete({
+      _id: targetId,
+      orgId: req.user.orgId
+    });
 
-    res.json(users);
+    if (!deleted) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (req.user.orgId) {
+      const activeCount = await User.countDocuments({ orgId: req.user.orgId, isActive: true });
+      await Organization.findByIdAndUpdate(req.user.orgId, { currentUsers: activeCount });
+    }
+
+    res.json({ message: 'User removed successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-module.exports = { 
-  inviteUser, 
-  // activateUser, 
+
+module.exports = {
+  inviteUser,
   getOrgUsers,
-  updateUserRole ,
-  getUsers
+  updateUserRole,
+  deleteUser,
+  getUsers: getOrgUsers
 };

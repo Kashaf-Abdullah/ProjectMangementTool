@@ -1,0 +1,31 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "pmt-frontend": {
+      "root": "pmt-frontend"
+    },
+    "multi-tenant-pm-backend": {
+      "root": "multi-tenant-pm-backend"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "multi-tenant-pm-backend"
+      }
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "destination": {
+        "service": "multi-tenant-pm-backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "pmt-frontend"
+      }
+    }
+  ]
+}

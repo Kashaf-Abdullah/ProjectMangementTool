@@ -1,18 +1,10 @@
-<<<<<<< HEAD
-# Environment variables
-.env
-.env.*
-!.env.example
-
-/password.txt
-E:/MERN_full_project/ProjectMangementTool/pmt-frontend/node_modules
-=======
 node_modules/
 **/node_modules/
 dist/
 **/dist/
 .env
+.env.*
+!.env.example
 .env.local
 /password.txt
 .DS_Store
->>>>>>> 069e30a653e10f86ca4835e9579f9dbce67189d7

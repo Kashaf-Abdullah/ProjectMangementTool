@@ -1,125 +1,22 @@
-// import React, { useState, useEffect } from 'react';
-// import { useParams, useNavigate } from 'react-router-dom';
-// import api from '../../services/api';
-// import toast from 'react-hot-toast';
-// import { FiCheckCircle, FiXCircle, FiLoader } from 'react-icons/fi';
-// import '../../styles/pages/auth.css';
-
-// const ActivateAccount = () => {
-//   const { token } = useParams();
-//   const navigate = useNavigate();
-//   const [status, setStatus] = useState('loading'); // loading, success, error
-//   const [message, setMessage] = useState('');
-
-
-
-//   const activateAccount = async () => {
-//     try {
-//       const response = await api.get(`/auth/activate/${token}`);
-      
-//       // Store token from response
-//       if (response.data.token) {
-//         localStorage.setItem('token', response.data.token);
-//         api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-//       }
-      
-//       setStatus('success');
-//       setMessage('Account activated successfully! Redirecting to dashboard...');
-      
-//       toast.success('Account activated successfully!');
-      
-//       // Redirect after 3 seconds
-//       setTimeout(() => {
-//         navigate('/dashboard');
-//       }, 3000);
-      
-//     } catch (error) {
-//       setStatus('error');
-//       const errorMsg = error.response?.data?.message || 'Invalid or expired invitation link';
-//       setMessage(errorMsg);
-//       toast.error(errorMsg);
-//     }
-//   };
-//   useEffect(() => {
-//     activateAccount();
-//   }, [token]);
-//   return (
-//     <div className="auth-container">
-//       <div className="auth-card activation-card">
-//         <div className="activation-icon">
-//           {status === 'loading' && <FiLoader className="loading-spinner" />}
-//           {status === 'success' && <FiCheckCircle className="success-icon" />}
-//           {status === 'error' && <FiXCircle className="error-icon" />}
-//         </div>
-        
-//         <div className="activation-content">
-//           <h1>
-//             {status === 'loading' && 'Activating Account...'}
-//             {status === 'success' && 'Account Activated!'}
-//             {status === 'error' && 'Activation Failed'}
-//           </h1>
-          
-//           <p className="activation-message">
-//             {message}
-//           </p>
-          
-//           {status === 'loading' && (
-//             <div className="loading-progress">
-//               <div className="progress-bar">
-//                 <div className="progress-fill"></div>
-//               </div>
-//             </div>
-//           )}
-          
-//           {status === 'success' && (
-//             <div className="activation-actions">
-//               <p>You will be redirected to the dashboard shortly.</p>
-//               <button 
-//                 className="auth-btn primary-btn"
-//                 onClick={() => navigate('/dashboard')}
-//               >
-//                 Go to Dashboard Now
-//               </button>
-//             </div>
-//           )}
-          
-//           {status === 'error' && (
-//             <div className="activation-actions">
-//               <p>Please contact your administrator for a new invitation.</p>
-//               <button 
-//                 className="auth-btn secondary-btn"
-//                 onClick={() => navigate('/login')}
-//               >
-//                 Go to Login
-//               </button>
-//             </div>
-//           )}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default ActivateAccount;
-
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import api from '../../services/api';
+import React, { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { FiCheckCircle, FiXCircle, FiLoader, FiLock } from 'react-icons/fi';
+import { FiCheckCircle, FiLock, FiXCircle, FiLoader } from 'react-icons/fi';
+import api from '../../services/api';
 import '../../styles/pages/auth.css';
+import '../../styles/pages/activation.css';
 
 const ActivateAccount = () => {
   const { token } = useParams();
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [status, setStatus] = useState('form'); // form, loading, success, error
+  const [status, setStatus] = useState('form');
   const [message, setMessage] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
     if (password !== confirmPassword) {
       toast.error('Passwords do not match');
       return;
@@ -131,131 +28,129 @@ const ActivateAccount = () => {
     }
 
     setStatus('loading');
-    
+
     try {
-      // ✅ POST request with password
-      const response = await api.post(`/auth/activate/${token}`, {
-        password: password
-      });
-      
-      // Store token from response
+      const response = await api.post(`/auth/activate/${token}`, { password });
+
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
-        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+        api.defaults.headers.common.Authorization = `Bearer ${response.data.token}`;
       }
-      
+
       setStatus('success');
-      setMessage('Account activated successfully! Redirecting to dashboard...');
-      
+      setMessage('Your account is ready. You will be redirected to your dashboard shortly.');
       toast.success('Account activated successfully!');
-      
-      // Redirect after 3 seconds
+
       setTimeout(() => {
         navigate('/dashboard');
       }, 3000);
-      
     } catch (error) {
       setStatus('error');
-      const errorMsg = error.response?.data?.message || 'Invalid or expired invitation link';
-      setMessage(errorMsg);
-      toast.error(errorMsg);
+      const errorMessage = error.response?.data?.message || 'Invalid or expired invitation link';
+      setMessage(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card activation-card">
-        {status === 'form' && (
+    <main className="auth-container activation-page">
+      <section className="auth-card activation-card" aria-live="polite">
+        {status === 'form' ? (
           <>
-            <div className="activation-icon">
-              <FiLock size={48} />
-            </div>
-            
-            <div className="activation-content">
-              <h1>Set Your Password</h1>
-              <p>Create a password to activate your account</p>
-              
-              <form onSubmit={handleSubmit}>
-                <div className="form-group">
-                  <label>New Password</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password (min 8 characters)"
-                    required
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label>Confirm Password</label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm password"
-                    required
-                  />
-                </div>
-                
-                <button 
-                  type="submit" 
-                  className="auth-btn primary-btn"
-                >
-                  Activate Account
-                </button>
-              </form>
-            </div>
-          </>
-        )}
-        
-        {status !== 'form' && (
-          <>
-            <div className="activation-icon">
-              {status === 'loading' && <FiLoader className="loading-spinner" />}
-              {status === 'success' && <FiCheckCircle className="success-icon" />}
-              {status === 'error' && <FiXCircle className="error-icon" />}
-            </div>
-            
-            <div className="activation-content">
-              <h1>
-                {status === 'loading' && 'Activating Account...'}
-                {status === 'success' && 'Account Activated!'}
-                {status === 'error' && 'Activation Failed'}
-              </h1>
-              
-              <p className="activation-message">
-                {message}
+            <header className="activation-header">
+              <div className="activation-mark" aria-hidden="true">
+                <FiLock />
+              </div>
+              <p className="activation-eyebrow">SECURE ACCOUNT SETUP</p>
+              <h1>Set your password</h1>
+              <p className="activation-description">
+                Create a password to activate your account and join your workspace.
               </p>
-              
-              {status === 'success' && (
-                <div className="activation-actions">
-                  <p>You will be redirected to the dashboard shortly.</p>
-                  <button 
-                    className="auth-btn primary-btn"
-                    onClick={() => navigate('/dashboard')}
-                  >
-                    Go to Dashboard Now
-                  </button>
-                </div>
-              )}
-              
-              {status === 'error' && (
-                <div className="activation-actions">
-                  <p>Please contact your administrator for a new invitation.</p>
-                  <button 
-                    className="auth-btn secondary-btn"
-                    onClick={() => navigate('/login')}
-                  >
-                    Go to Login
-                  </button>
-                </div>
-              )}
-            </div>
+            </header>
+
+            <form className="activation-form" onSubmit={handleSubmit}>
+              <div className="activation-field">
+                <label htmlFor="activation-password">New password</label>
+                <input
+                  autoComplete="new-password"
+                  id="activation-password"
+                  minLength={8}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="At least 8 characters"
+                  required
+                  type="password"
+                  value={password}
+                />
+                <span className="activation-hint">Use at least 8 characters.</span>
+              </div>
+
+              <div className="activation-field">
+                <label htmlFor="activation-confirm-password">Confirm password</label>
+                <input
+                  autoComplete="new-password"
+                  id="activation-confirm-password"
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Enter your password again"
+                  required
+                  type="password"
+                  value={confirmPassword}
+                />
+              </div>
+
+              <button className="auth-btn primary-btn activation-submit" type="submit">
+                Activate account
+              </button>
+            </form>
+
+            <p className="activation-security">
+              <FiLock aria-hidden="true" />
+              Your account details are protected
+            </p>
           </>
+        ) : (
+          <div className={`activation-result activation-result-${status}`}>
+            <div className="activation-result-icon" aria-hidden="true">
+              {status === 'loading' && <FiLoader className="activation-spinner" />}
+              {status === 'success' && <FiCheckCircle />}
+              {status === 'error' && <FiXCircle />}
+            </div>
+            <p className="activation-eyebrow">
+              {status === 'loading' ? 'JUST A MOMENT' : status === 'success' ? 'ALL SET' : 'LINK ISSUE'}
+            </p>
+            <h1>
+              {status === 'loading' && 'Activating your account'}
+              {status === 'success' && 'Welcome to your workspace'}
+              {status === 'error' && 'Could not activate account'}
+            </h1>
+            <p className="activation-description">{message}</p>
+
+            {status === 'loading' && <div className="activation-progress" />}
+            {status === 'success' && (
+              <button
+                className="auth-btn primary-btn activation-submit"
+                onClick={() => navigate('/dashboard')}
+                type="button"
+              >
+                Go to dashboard
+              </button>
+            )}
+            {status === 'error' && (
+              <>
+                <p className="activation-help">Please contact your administrator for a new invitation.</p>
+                <button
+                  className="auth-btn secondary-btn activation-submit"
+                  onClick={() => navigate('/login')}
+                  type="button"
+                >
+                  Back to login
+                </button>
+              </>
+            )}
+          </div>
         )}
-      </div>
-    </div>
+      </section>
+      <p className="activation-footer">A better way to work, together.</p>
+    </main>
   );
 };
 

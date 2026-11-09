@@ -1,18 +1,19 @@
-<<<<<<< HEAD
 # Environment variables
-.env
-.env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
+multi-tenant-pm-backend/.env
 
-/password.txt
-E:/MERN_full_project/ProjectMangementTool/pmt-frontend/node_modules
-=======
-node_modules/
+# Dependencies and build output
 **/node_modules/
-dist/
 **/dist/
-.env
-.env.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Local files
 /password.txt
 .DS_Store
->>>>>>> 069e30a653e10f86ca4835e9579f9dbce67189d7

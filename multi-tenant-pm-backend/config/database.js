@@ -1,23 +1,3 @@
-<<<<<<< HEAD
-const mongoose = require('mongoose');
-
-const connectDB = async () => {
-  try {
-    const uri = process.env.MONGO_URI;
-
-    const conn = await mongoose.connect(uri, {
-      // new mongoose versions ke liye options optional hain
-    });
-
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error('Database connection error:', error.message);
-    process.exit(1);
-  }
-};
-
-module.exports = connectDB;
-=======
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
@@ -32,4 +12,3 @@ const connectDB = async () => {
 };
 
 module.exports = connectDB;
->>>>>>> 069e30a653e10f86ca4835e9579f9dbce67189d7

@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { FiMail, FiLock } from 'react-icons/fi';
+import { FiMail, FiLock, FiUser } from 'react-icons/fi';
 import '../../styles/pages/auth.css';
+
+const demoUsers = [
+  { name: 'Avery Morgan', role: 'Admin', email: 'admin@acme-demo.dev' },
+  { name: 'Jordan Lee', role: 'Project Manager', email: 'manager@acme-demo.dev' },
+  { name: 'Riley Taylor', role: 'Team Member', email: 'member@acme-demo.dev' }
+];
+const demoPassword = 'DemoPass123!';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -23,13 +30,26 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+
     const result = await login(formData.email, formData.password);
-    
+
     if (result.success) {
       navigate('/dashboard');
     }
-    
+
+    setLoading(false);
+  };
+
+  const handleDemoLogin = async (demoUser) => {
+    setFormData({ email: demoUser.email, password: demoPassword });
+    setLoading(true);
+
+    const result = await login(demoUser.email, demoPassword);
+
+    if (result.success) {
+      navigate('/dashboard');
+    }
+
     setLoading(false);
   };
 
@@ -94,6 +114,29 @@ const Login = () => {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        <section className="demo-accounts" aria-labelledby="demo-accounts-title">
+          <h2 id="demo-accounts-title">Try a demo account</h2>
+          <p>Choose a role to sign in instantly. Shared password: <strong>{demoPassword}</strong></p>
+          <div className="demo-account-list">
+            {demoUsers.map((demoUser) => (
+              <button
+                key={demoUser.email}
+                type="button"
+                className="demo-account-btn"
+                onClick={() => handleDemoLogin(demoUser)}
+                disabled={loading}
+              >
+                <FiUser aria-hidden="true" />
+                <span className="demo-account-info">
+                  <strong>{demoUser.name}</strong>
+                  <span>{demoUser.role} · {demoUser.email}</span>
+                </span>
+                <span className="demo-account-action">{loading ? 'Signing in...' : 'Try'}</span>
+              </button>
+            ))}
+          </div>
+        </section>
 
         <div className="auth-footer">
           <p>

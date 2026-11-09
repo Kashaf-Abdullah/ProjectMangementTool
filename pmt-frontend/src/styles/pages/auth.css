@@ -167,6 +167,83 @@
   cursor: not-allowed;
 }
 
+.demo-accounts {
+  padding: 0 var(--spacing-2xl);
+  margin-top: var(--spacing-xl);
+}
+
+.demo-accounts h2 {
+  margin: 0 0 var(--spacing-xs);
+  color: var(--gray-800);
+  font-size: 16px;
+}
+
+.demo-accounts > p {
+  margin: 0 0 var(--spacing-md);
+  color: var(--gray-500);
+  font-size: 12px;
+}
+
+.demo-accounts > p strong {
+  color: var(--gray-700);
+}
+
+.demo-account-list {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.demo-account-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--gray-700);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.demo-account-btn:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  background: var(--gray-50);
+}
+
+.demo-account-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.demo-account-info {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.demo-account-info strong {
+  color: var(--gray-800);
+  font-size: 13px;
+}
+
+.demo-account-info > span {
+  overflow: hidden;
+  color: var(--gray-500);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-account-action {
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .auth-footer {
   padding: var(--spacing-lg) var(--spacing-2xl) var(--spacing-2xl);
   text-align: center;
@@ -406,6 +483,10 @@
   .auth-form,
   .auth-footer {
     padding: var(--spacing-lg);
+  }
+
+  .demo-accounts {
+    padding: 0 var(--spacing-lg);
   }
   
   .social-buttons {

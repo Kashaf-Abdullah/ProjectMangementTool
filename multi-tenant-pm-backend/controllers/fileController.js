@@ -1,12 +1,17 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 const multer = require('multer');
 const SharedFile = require('../models/SharedFile');
 const { recordActivity } = require('./activityController');
 const { broadcastToOrg } = require('../utils/realtime');
 
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || (
+  process.env.VERCEL
+    ? path.join(os.tmpdir(), 'multi-tenant-pm-uploads')
+    : path.join(__dirname, '..', 'uploads')
+);
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }

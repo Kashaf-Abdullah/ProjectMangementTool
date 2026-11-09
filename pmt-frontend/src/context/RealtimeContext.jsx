@@ -1,9 +1,15 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import Pusher from 'pusher-js';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
-import { resolveWsUrl } from '../services/api';
+import { API_BASE, resolveWsUrl } from '../services/api';
 
 const RealtimeContext = createContext(null);
+const CHAT_PUSHER_EVENTS = [
+  'chat:channel_created',
+  'chat:message',
+  'chat:message_deleted'
+];
 
 export const useRealtime = () => {
   const ctx = useContext(RealtimeContext);
@@ -52,6 +58,7 @@ export const RealtimeProvider = ({ children }) => {
     }
 
     let unmounted = false;
+    let pusher;
 
     const connect = () => {
       const token = localStorage.getItem('token');
@@ -103,11 +110,41 @@ export const RealtimeProvider = ({ children }) => {
       }
     };
 
+    const pusherKey = import.meta.env.VITE_PUSHER_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER;
+    if (pusherKey && pusherCluster) {
+      const token = localStorage.getItem('token');
+      pusher = new Pusher(pusherKey, {
+        cluster: pusherCluster,
+        channelAuthorization: {
+          endpoint: `${API_BASE.replace(/\/$/, '')}/chat/pusher/auth`,
+          transport: 'ajax',
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        }
+      });
+
+      const channelNames = [
+        user.orgId && `private-org-${user.orgId}`,
+        (user._id || user.id) && `private-user-${user._id || user.id}`
+      ].filter(Boolean);
+
+      channelNames.forEach((channelName) => {
+        const channel = pusher.subscribe(channelName);
+        CHAT_PUSHER_EVENTS.forEach((eventType) => {
+          channel.bind(eventType, (data) => {
+            const handlers = listenersRef.current.get(eventType);
+            if (handlers) handlers.forEach((cb) => cb(data));
+          });
+        });
+      });
+    }
+
     connect();
 
     return () => {
       unmounted = true;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (pusher) pusher.disconnect();
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;

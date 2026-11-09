@@ -5,7 +5,11 @@ const SharedFile = require('../models/SharedFile');
 const { formatFileDoc } = require('./fileController');
 const { createNotification } = require('./notificationController');
 const { resolveMentions } = require('../utils/mentions');
-const { broadcastToOrg, sendToUser, getOnlineUserIds } = require('../utils/realtime');
+const {
+  publishChatEventToOrg,
+  publishChatEventToUsers,
+  getOnlineUserIds
+} = require('../utils/realtime');
 
 const ensureDefaultChannels = async (orgId, userId) => {
   const count = await ChatChannel.countDocuments({ orgId, type: 'channel' });
@@ -134,7 +138,7 @@ const createChannel = async (req, res) => {
       .populate('projectId', 'name color');
 
     const formatted = formatChannelDoc(populated, req.user._id);
-    broadcastToOrg(req.user.orgId, { type: 'chat:channel_created', channel: formatted });
+    publishChatEventToOrg(req.user.orgId, { type: 'chat:channel_created', channel: formatted });
     res.status(201).json(formatted);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -258,8 +262,12 @@ const sendChannelMessage = async (req, res) => {
     const senderName = `${req.user.firstName} ${req.user.lastName}`.trim();
 
     if (channel.type === 'dm') {
+      publishChatEventToUsers(channel.participants, {
+        type: 'chat:message',
+        message: formatted,
+        channelId: channel._id.toString()
+      });
       for (const pId of channel.participants) {
-        sendToUser(pId, { type: 'chat:message', message: formatted, channelId: channel._id.toString() });
         if (pId.toString() !== req.user._id.toString()) {
           await createNotification({
             orgId: req.user.orgId,
@@ -273,7 +281,11 @@ const sendChannelMessage = async (req, res) => {
         }
       }
     } else {
-      broadcastToOrg(req.user.orgId, { type: 'chat:message', message: formatted, channelId: channel._id.toString() });
+      publishChatEventToOrg(req.user.orgId, {
+        type: 'chat:message',
+        message: formatted,
+        channelId: channel._id.toString()
+      });
       for (const mId of mentionedIds) {
         await createNotification({
           orgId: req.user.orgId,
@@ -304,12 +316,18 @@ const deleteChatMessage = async (req, res) => {
       return res.status(403).json({ message: 'Cannot delete another member message' });
     }
 
+    const channel = await ChatChannel.findOne({ _id: msg.channelId, orgId: req.user.orgId });
     await ChatMessage.deleteOne({ _id: msg._id });
-    broadcastToOrg(req.user.orgId, {
+    const event = {
       type: 'chat:message_deleted',
       channelId: msg.channelId.toString(),
       messageId: msg._id.toString()
-    });
+    };
+    if (channel?.type === 'dm') {
+      publishChatEventToUsers(channel.participants, event);
+    } else {
+      publishChatEventToOrg(req.user.orgId, event);
+    }
     res.json({ message: 'Message deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });

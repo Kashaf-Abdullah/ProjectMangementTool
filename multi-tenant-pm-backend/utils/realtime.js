@@ -1,6 +1,7 @@
 const { WebSocketServer, WebSocket } = require('ws');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { pusher, isConfigured: isPusherConfigured } = require('../config/pusher');
 
 const wsClients = new Set();
 
@@ -24,6 +25,53 @@ function sendToUser(userId, payload) {
       client.ws.send(serialized);
     }
   }
+}
+
+const publishPusherEvent = async (channelName, payload, fallback) => {
+  if (!pusher) {
+    fallback();
+    return;
+  }
+
+  try {
+    await pusher.trigger(channelName, payload.type, payload);
+  } catch (error) {
+    console.error(`Failed to publish Pusher event "${payload.type}":`, error);
+    fallback();
+  }
+};
+
+function publishChatEventToOrg(orgId, payload) {
+  if (!orgId) return;
+  const orgKey = orgId.toString();
+  return publishPusherEvent(`private-org-${orgKey}`, payload, () => {
+    broadcastToOrg(orgKey, payload);
+  });
+}
+
+function publishChatEventToUsers(userIds, payload) {
+  const recipients = [...new Set(userIds.filter(Boolean).map(id => id.toString()))];
+  if (recipients.length === 0) return;
+
+  return Promise.all(recipients.map(userId => (
+    publishPusherEvent(`private-user-${userId}`, payload, () => {
+      sendToUser(userId, payload);
+    })
+  )));
+}
+
+function authenticatePusherChannel(socketId, channelName, user) {
+  if (!isPusherConfigured) {
+    throw new Error('Pusher is not configured');
+  }
+
+  const orgChannel = user.orgId && `private-org-${user.orgId.toString()}`;
+  const userChannel = `private-user-${user._id.toString()}`;
+  if (channelName !== orgChannel && channelName !== userChannel) {
+    throw new Error('Not authorized to subscribe to this Pusher channel');
+  }
+
+  return pusher.authorizeChannel(socketId, channelName);
 }
 
 function getOnlineUserIds(orgId) {
@@ -113,5 +161,8 @@ module.exports = {
   attachWebSocketServer,
   broadcastToOrg,
   sendToUser,
+  publishChatEventToOrg,
+  publishChatEventToUsers,
+  authenticatePusherChannel,
   getOnlineUserIds
 };

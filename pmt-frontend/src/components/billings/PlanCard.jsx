@@ -3,15 +3,13 @@ import { FiCheck, FiZap, FiStar } from 'react-icons/fi';
 
 const PlanCard = ({ plan, onUpgrade, isProcessing, currentUserLimit }) => {
   const isCurrentPlan = plan.current;
-  const isGrowthPlan = plan.name === 'Growth';
-  const needsUpgrade = isGrowthPlan && currentUserLimit <= 5;
+  const isGrowthPlan = plan.name === 'Growth' || plan.name === 'Team Growth';
 
   const handleClick = () => {
-    if (isGrowthPlan && needsUpgrade) {
+    if (isGrowthPlan) {
       onUpgrade();
     } else if (plan.name === 'Enterprise') {
-      // Handle enterprise contact
-      window.location.href = 'mailto:sales@example.com';
+      window.location.href = 'mailto:sales@projectmanagement.com';
     }
   };
 
@@ -29,8 +27,8 @@ const PlanCard = ({ plan, onUpgrade, isProcessing, currentUserLimit }) => {
         <div className="plan-price">
           {typeof plan.price === 'number' ? (
             <>
-              <span className="price-amount">${plan.price}</span>
-              {plan.price > 0 && <span className="price-period"> / one-time</span>}
+              <span className="price-amount">${plan.price.toFixed(2)}</span>
+              {plan.price > 0 && <span className="price-period"> / member</span>}
             </>
           ) : (
             <span className="price-amount">{plan.price}</span>
@@ -38,7 +36,7 @@ const PlanCard = ({ plan, onUpgrade, isProcessing, currentUserLimit }) => {
         </div>
         <div className="plan-user-limit">
           <FiZap />
-          <span>{plan.userLimit} users</span>
+          <span>{plan.userLimit}</span>
         </div>
       </div>
 
@@ -72,7 +70,7 @@ const PlanCard = ({ plan, onUpgrade, isProcessing, currentUserLimit }) => {
             ) : plan.name === 'Enterprise' ? (
               'Contact Sales'
             ) : (
-              'Upgrade Now'
+              'Upgrade Seats'
             )}
           </button>
         )}
@@ -80,7 +78,7 @@ const PlanCard = ({ plan, onUpgrade, isProcessing, currentUserLimit }) => {
 
       {isGrowthPlan && (
         <div className="plan-note">
-          <p>Adds 5 user slots to your current limit</p>
+          <p>$3.00/member + 10% platform join fee</p>
         </div>
       )}
     </div>

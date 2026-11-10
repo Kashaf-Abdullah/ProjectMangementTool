@@ -19,17 +19,26 @@ export const resolveBackendUrl = (relativePath = '') => {
 };
 
 export const resolveWsUrl = (token = '') => {
-  if (API_BASE.startsWith('http://') || API_BASE.startsWith('https://')) {
-    try {
-      const parsed = new URL(API_BASE);
-      const wsProto = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${wsProto}//${parsed.host}/ws?token=${encodeURIComponent(token)}`;
-    } catch {
-      // Fallback below
-    }
+  const configuredWsUrl = import.meta.env.VITE_WS_URL;
+  let url;
+
+  if (configuredWsUrl) {
+    url = new URL(configuredWsUrl, window.location.origin);
+  } else if (API_BASE.startsWith('http://') || API_BASE.startsWith('https://')) {
+    const apiUrl = new URL(API_BASE);
+    url = new URL('/ws', apiUrl.origin);
+  } else {
+    url = new URL('/ws', window.location.origin);
   }
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+
+  if (url.protocol === 'https:') url.protocol = 'wss:';
+  if (url.protocol === 'http:') url.protocol = 'ws:';
+  if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
+    throw new Error('VITE_WS_URL must use ws:// or wss://');
+  }
+
+  url.searchParams.set('token', token);
+  return url.toString();
 };
 
 const api = axios.create({

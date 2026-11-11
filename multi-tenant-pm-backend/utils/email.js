@@ -65,6 +65,35 @@ const sendTaskAssignedEmail = async ({ to, assigneeName, taskTitle, projectName,
   });
 };
 
+const sendMentionEmail = async ({ to, recipientName, senderName, taskTitle, comment, taskUrl }) => {
+  const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+  const escapedTaskUrl = escapeHtml(taskUrl);
+
+  return safeSendMail({
+    from: `"Project Management Tool" <${process.env.EMAIL_USER || 'no-reply@pmtool.local'}>`,
+    to,
+    subject: `${senderName} mentioned you in a task comment`,
+    text: `Hi ${recipientName},\n\n${senderName} mentioned you in a comment on "${taskTitle}":\n\n${comment}\n\nView task: ${taskUrl}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">You were mentioned in a task comment</h2>
+        <p>Hi ${escapeHtml(recipientName)},</p>
+        <p><strong>${escapeHtml(senderName)}</strong> mentioned you on task <strong>${escapeHtml(taskTitle)}</strong>:</p>
+        <blockquote style="margin: 16px 0; padding: 12px 16px; border-left: 4px solid #3b82f6; background: #f8fafc; color: #475569;">
+          ${escapeHtml(comment)}
+        </blockquote>
+        <p><a href="${escapedTaskUrl}" style="background: #2563eb; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; display: inline-block;">View task</a></p>
+      </div>
+    `
+  });
+};
+
 const sendBillingConfirmation = async (to, orgName, userPacks) => {
   return safeSendMail({
     from: `"Project Management Tool" <${process.env.EMAIL_USER || 'no-reply@pmtool.local'}>`,
@@ -82,5 +111,6 @@ const sendBillingConfirmation = async (to, orgName, userPacks) => {
 module.exports = {
   sendInviteEmail,
   sendTaskAssignedEmail,
+  sendMentionEmail,
   sendBillingConfirmation
 };

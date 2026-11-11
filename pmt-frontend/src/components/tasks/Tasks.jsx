@@ -10,12 +10,15 @@ import {
   FiSearch,
   FiGrid,
   FiList,
+  FiCalendar,
+  FiBarChart2,
   FiUser,
   FiMessageSquare
 } from 'react-icons/fi';
 import TaskCard from './TaskCard';
 import TaskForm from './TaskForm';
 import TaskCommentsModal from './TaskCommentsModal';
+import TaskScheduleViews from './TaskScheduleViews';
 import Modal from '../common/Modal';
 import '../../styles/pages/tasks.css';
 
@@ -251,6 +254,24 @@ const Tasks = () => {
               <FiList size={15} />
               List
             </button>
+            <button
+              type="button"
+              className={`toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`}
+              onClick={() => setViewMode('calendar')}
+              title="Weekly and monthly calendar"
+            >
+              <FiCalendar size={15} />
+              Calendar
+            </button>
+            <button
+              type="button"
+              className={`toggle-btn ${viewMode === 'timeline' ? 'active' : ''}`}
+              onClick={() => setViewMode('timeline')}
+              title="Project timeline and Gantt chart"
+            >
+              <FiBarChart2 size={15} />
+              Timeline
+            </button>
           </div>
 
           {canCreateTask && (
@@ -333,7 +354,15 @@ const Tasks = () => {
       </div>
 
       {/* Kanban Board View */}
-      {viewMode === 'board' ? (
+      {viewMode === 'calendar' || viewMode === 'timeline' ? (
+        <TaskScheduleViews
+          viewMode={viewMode}
+          tasks={filteredTasks}
+          projects={projects}
+          members={members}
+          onSelectTask={setSelectedTaskForComments}
+        />
+      ) : viewMode === 'board' ? (
         <div className="kanban-board">
           {statusColumns.map(column => {
             const columnTasks = filteredTasks.filter(task => task.status === column.id);

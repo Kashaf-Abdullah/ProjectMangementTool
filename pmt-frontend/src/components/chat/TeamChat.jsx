@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
   FiHash,
@@ -21,6 +22,7 @@ import toast from 'react-hot-toast';
 import '../../styles/pages/collaboration.css';
 
 const TeamChat = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { onlineUserIds, subscribe, sendWsEvent } = useRealtime();
   const currentUserId = user?._id || user?.id;
@@ -193,7 +195,7 @@ const TeamChat = () => {
     }
   };
 
-  const handleOpenDM = async (teammate) => {
+  const handleOpenDM = useCallback(async (teammate) => {
     try {
       const res = await api.post('/chat/dm', { targetUserId: teammate._id });
       const dmChannel = res.data;
@@ -204,7 +206,25 @@ const TeamChat = () => {
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not start direct message');
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const targetUserId = searchParams.get('user');
+    if (loading || !targetUserId) return;
+
+    const teammate = members.find(member => member._id === targetUserId);
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous);
+      next.delete('user');
+      return next;
+    }, { replace: true });
+
+    if (teammate && teammate._id !== currentUserId) {
+      handleOpenDM(teammate);
+    } else {
+      toast.error('Team member not found');
+    }
+  }, [currentUserId, handleOpenDM, loading, members, searchParams, setSearchParams]);
 
   const handleCreateChannel = async (e) => {
     e.preventDefault();

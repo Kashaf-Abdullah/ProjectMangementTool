@@ -19,6 +19,7 @@ const chatRoutes = require('./routes/chat');
 const activityRoutes = require('./routes/activities');
 const billingRoutes = require('./routes/billing');
 const webhookRoutes = require('./routes/webhooks');
+const searchRoutes = require('./routes/search');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -44,9 +45,11 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/discussions', discussionRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/activity', activityRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/search', searchRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });

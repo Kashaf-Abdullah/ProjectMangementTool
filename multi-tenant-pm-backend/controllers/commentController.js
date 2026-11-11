@@ -1,10 +1,12 @@
 const Comment = require('../models/Comment');
 const Task = require('../models/Task');
+const User = require('../models/User');
 const SharedFile = require('../models/SharedFile');
 const { formatFileDoc } = require('./fileController');
 const { createNotification } = require('./notificationController');
 const { recordActivity } = require('./activityController');
 const { resolveMentions } = require('../utils/mentions');
+const { sendMentionEmail } = require('../utils/email');
 const { broadcastToOrg } = require('../utils/realtime');
 
 const formatComment = (doc) => {
@@ -84,19 +86,36 @@ const addTaskComment = async (req, res) => {
 
     const senderName = `${req.user.firstName} ${req.user.lastName}`.trim();
     const notified = new Set();
-
-    for (const mId of mentionedIds) {
-      notified.add(mId.toString());
-      await createNotification({
+    const mentionedUsers = mentionedIds.length > 0
+      ? await User.find({
+        _id: { $in: mentionedIds },
         orgId: req.user.orgId,
-        recipientId: mId,
-        senderId: req.user._id,
-        type: 'mention',
-        title: `${senderName} mentioned you in a task comment`,
-        message: `On "${task.title}": ${trimmed.slice(0, 120)}`,
-        taskId: task._id,
-        projectId: task.projectId
-      });
+        isActive: true
+      }).select('_id firstName email')
+      : [];
+
+    for (const mentionedUser of mentionedUsers) {
+      notified.add(mentionedUser._id.toString());
+      await Promise.all([
+        createNotification({
+          orgId: req.user.orgId,
+          recipientId: mentionedUser._id,
+          senderId: req.user._id,
+          type: 'mention',
+          title: `${senderName} mentioned you in a task comment`,
+          message: `On "${task.title}": ${trimmed.slice(0, 120)}`,
+          taskId: task._id,
+          projectId: task.projectId
+        }),
+        sendMentionEmail({
+          to: mentionedUser.email,
+          recipientName: mentionedUser.firstName,
+          senderName,
+          taskTitle: task.title,
+          comment: trimmed,
+          taskUrl: `${process.env.CLIENT_URL || 'http://localhost:5173'}/tasks?task=${task._id}`
+        })
+      ]);
     }
 
     if (parentComment && parentComment.authorId.toString() !== req.user._id.toString() && !notified.has(parentComment.authorId.toString())) {

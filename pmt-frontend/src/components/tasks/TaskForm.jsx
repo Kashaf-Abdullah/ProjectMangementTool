@@ -28,6 +28,9 @@ const TaskForm = ({
     assigneeId: task && mode === 'edit' ? (task.assigneeId?._id || task.assigneeId || '') : '',
     status: task && mode === 'edit' ? (task.status || 'todo') : 'todo',
     priority: task && mode === 'edit' ? (task.priority || 'medium') : 'medium',
+    startDate: task && mode === 'edit' && task.startDate
+      ? new Date(task.startDate).toISOString().split('T')[0]
+      : '',
     dueDate: task && mode === 'edit' && task.dueDate
       ? new Date(task.dueDate).toISOString().split('T')[0]
       : '',
@@ -124,6 +127,9 @@ const TaskForm = ({
     }
     if (!formData.assigneeId) {
       newErrors.assigneeId = 'Please assign this task to a team member';
+    }
+    if (formData.startDate && formData.dueDate && formData.dueDate < formData.startDate) {
+      newErrors.dueDate = 'Due date must be on or after the start date';
     }
     return newErrors;
   };
@@ -314,6 +320,22 @@ const TaskForm = ({
 
       <div className="form-row">
         <div className="form-group">
+          <label htmlFor="startDate" className="form-label">
+            <FiCalendar className="form-icon" />
+            Start Date
+          </label>
+          <input
+            type="date"
+            id="startDate"
+            name="startDate"
+            value={formData.startDate}
+            onChange={handleChange}
+            className="form-input"
+            max={formData.dueDate || undefined}
+          />
+        </div>
+
+        <div className="form-group">
           <label htmlFor="dueDate" className="form-label">
             <FiCalendar className="form-icon" />
             Due Date
@@ -324,10 +346,14 @@ const TaskForm = ({
             name="dueDate"
             value={formData.dueDate}
             onChange={handleChange}
-            className="form-input"
+            className={`form-input ${errors.dueDate ? 'error' : ''}`}
+            min={formData.startDate || undefined}
           />
+          {errors.dueDate && <span className="form-error">{errors.dueDate}</span>}
         </div>
+      </div>
 
+      <div className="form-row">
         <div className="form-group">
           <label className="form-label">Labels</label>
           <div className="labels-selector">

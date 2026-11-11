@@ -74,7 +74,7 @@ const ActivityFeed = ({ fixedProjectId = null, compactLimit = null }) => {
       if (category !== 'all') params.set('category', category);
       if (compactLimit) params.set('limit', String(compactLimit));
 
-      const res = await api.get(`/activities?${params.toString()}`);
+      const res = await api.get(`/activity?${params.toString()}`);
       setActivities(Array.isArray(res.data) ? res.data : []);
     } catch {
       toast.error('Failed to load activity feed');

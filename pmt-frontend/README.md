@@ -26,3 +26,6 @@ The frontend host must support forwarding WebSocket upgrades if using a
 same-origin endpoint. Vercel-hosted frontend deployments should point
 `VITE_WS_URL` to a separately hosted backend that supports persistent
 WebSocket connections, then rebuild and redeploy the frontend.
+
+`vercel.json` rewrites frontend routes to `index.html`, so React Router pages
+also load when opened directly or refreshed in a Vercel deployment.
